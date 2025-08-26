@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
-import { useAuth } from "@/lib/auth";
+import { createContext, useContext, useState, ReactNode } from "react";
 
 interface GoogleAdsContextType {
   customerId: string | null;
@@ -21,24 +14,15 @@ const GoogleAdsContext = createContext<GoogleAdsContextType | undefined>(
 );
 
 export function GoogleAdsProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const storedId = localStorage.getItem("google_ads_customer_id");
-    if (user && storedId) {
-      setCustomerId(storedId);
-      setIsConnected(true);
-    } else {
-      setIsConnected(false);
-    }
-    setLoading(false);
-  }, [user]);
+  // Set loading to false as we no longer check for a persistent connection
+  const loading = false;
 
   const connectGoogleAds = (id: string) => {
     if (id) {
+      // We still set it in localStorage for the current session if needed
       localStorage.setItem("google_ads_customer_id", id);
       setCustomerId(id);
       setIsConnected(true);

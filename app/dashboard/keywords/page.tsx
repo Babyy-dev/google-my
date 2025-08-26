@@ -39,8 +39,8 @@ export default function KeywordsPage() {
   const [analysis, setAnalysis] =
     useState<NegativeKeywordAnalysis>(initialAnalysis);
   const [inputCustomerId, setInputCustomerId] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  // ... inside your KeywordsPage component
   const handleAnalyze = useCallback(
     async (id: string) => {
       if (!session?.provider_refresh_token) return;
@@ -55,23 +55,49 @@ export default function KeywordsPage() {
       }
     },
     [session, analyzeNegativeKeywords]
-  ); // Correctly add dependencies here
+  );
 
   useEffect(() => {
     if (isConnected && customerId) {
       handleAnalyze(customerId);
     }
-  }, [isConnected, customerId, handleAnalyze]); // THE FIX: Add handleAnalyze hereWrap function in useCallback
+  }, [isConnected, customerId, handleAnalyze]);
 
-  useEffect(() => {
-    if (isConnected && customerId) {
-      handleAnalyze(customerId);
+  const handleConnect = async () => {
+    if (
+      !inputCustomerId ||
+      !session?.provider_token ||
+      !session?.provider_refresh_token
+    ) {
+      console.error("Customer ID or auth tokens are missing.");
+      return;
     }
-  }, [isConnected, customerId, handleAnalyze]); // THE FIX: Add handleAnalyze to dependency array
+    setIsConnecting(true);
+    try {
+      const response = await fetch("/api/google-ads/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: inputCustomerId.replace(/-/g, ""),
+          accessToken: session.provider_token,
+          refreshToken: session.provider_refresh_token,
+          accountName: `Google Ads ${inputCustomerId}`,
+          currencyCode: "USD",
+        }),
+      });
 
-  const handleConnect = () => {
-    if (!inputCustomerId) return;
-    connectGoogleAds(inputCustomerId);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.details || "Failed to save Google Ads account connection."
+        );
+      }
+      connectGoogleAds(inputCustomerId);
+    } catch (e) {
+      console.error("Connection failed", e);
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   const handleAddKeywords = async (adGroupId: string, keywords: string[]) => {
@@ -83,7 +109,6 @@ export default function KeywordsPage() {
         adGroupId,
         keywords
       );
-      // Re-run analysis after adding keywords to refresh the data
       handleAnalyze(customerId);
     } catch (e) {
       console.error(e);
@@ -119,10 +144,12 @@ export default function KeywordsPage() {
             </div>
             <Button
               onClick={handleConnect}
-              disabled={!inputCustomerId || loading}
+              disabled={!inputCustomerId || loading || isConnecting}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {loading ? "🔍 Analyzing Keywords..." : "🚀 Analyze Keywords"}
+              {loading || isConnecting
+                ? "🔍 Analyzing Keywords..."
+                : "🚀 Analyze Keywords"}
             </Button>
           </CardContent>
         </Card>

@@ -38,7 +38,6 @@ const initialFraudData: FraudAnalysis = {
   recommendations: [],
 };
 
-// Define a type for the alert prop
 interface Alert {
   ip: string;
   location: string;
@@ -52,9 +51,15 @@ interface Alert {
 export default function ClickFraudPage() {
   const { session } = useAuth();
   const { analyzeFraud, loading, error } = useGoogleAds();
-  const { isConnected, customerId, connectGoogleAds } = useGoogleAdsContext();
+  const {
+    isConnected,
+    customerId,
+    connectGoogleAds,
+    loading: contextLoading,
+  } = useGoogleAdsContext();
   const [fraudData, setFraudData] = useState<FraudAnalysis>(initialFraudData);
   const [inputCustomerId, setInputCustomerId] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const fetchFraudData = useCallback(
     async (id: string) => {
@@ -78,10 +83,47 @@ export default function ClickFraudPage() {
     }
   }, [isConnected, customerId, fetchFraudData]);
 
-  const handleConnect = () => {
-    if (!inputCustomerId) return;
-    connectGoogleAds(inputCustomerId);
+  const handleConnect = async () => {
+    if (!inputCustomerId || !session?.provider_refresh_token) {
+      console.error("Customer ID or refresh token are missing.");
+      return;
+    }
+    setIsConnecting(true);
+    try {
+      const response = await fetch("/api/google-ads/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: inputCustomerId.replace(/-/g, ""),
+          accessToken: session.provider_token,
+          refreshToken: session.provider_refresh_token,
+          accountName: `Google Ads ${inputCustomerId}`,
+          currencyCode: "USD",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.details || "Failed to connect Google Ads account."
+        );
+      }
+
+      connectGoogleAds(inputCustomerId);
+    } catch (e) {
+      console.error("Connection failed", e);
+    } finally {
+      setIsConnecting(false);
+    }
   };
+
+  if (contextLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (
@@ -112,10 +154,10 @@ export default function ClickFraudPage() {
             </div>
             <Button
               onClick={handleConnect}
-              disabled={!inputCustomerId || loading}
+              disabled={!inputCustomerId || loading || isConnecting}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {loading ? "🔍 Connecting..." : "🚀 Connect & Analyze"}
+              {isConnecting ? "🔗 Connecting..." : "🚀 Connect & Analyze"}
             </Button>
           </CardContent>
         </Card>
