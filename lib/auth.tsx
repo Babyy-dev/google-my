@@ -1,26 +1,16 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { SupabaseClient, User, Session } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-
-type AuthContextType = {
-  supabase: SupabaseClient;
-  user: User | null;
-  session: Session | null; // <-- Add session to the type
-  loading: boolean;
-  signInWithGoogle: () => Promise<void>;
-  signOut: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from "@/app/contexts/AuthContext"; // <-- Import the context from the new file
+import type { User, Session } from "@supabase/supabase-js";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null); // <-- Add session state
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     supabase,
     user,
-    session, // <-- Expose session in the context value
+    session,
     loading,
     signInWithGoogle,
     signOut,
@@ -79,7 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
+  const context = useContext(AuthContext); // <-- This now uses the imported context
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
