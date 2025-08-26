@@ -40,6 +40,7 @@ export default function KeywordsPage() {
     useState<NegativeKeywordAnalysis>(initialAnalysis);
   const [inputCustomerId, setInputCustomerId] = useState("");
 
+  // ... inside your KeywordsPage component
   const handleAnalyze = useCallback(
     async (id: string) => {
       if (!session?.provider_refresh_token) return;
@@ -54,7 +55,13 @@ export default function KeywordsPage() {
       }
     },
     [session, analyzeNegativeKeywords]
-  ); // Wrap function in useCallback
+  ); // Correctly add dependencies here
+
+  useEffect(() => {
+    if (isConnected && customerId) {
+      handleAnalyze(customerId);
+    }
+  }, [isConnected, customerId, handleAnalyze]); // THE FIX: Add handleAnalyze hereWrap function in useCallback
 
   useEffect(() => {
     if (isConnected && customerId) {

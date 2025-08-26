@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
     }
 
     // This is a background task, so we don't need to wait for it to finish.
-    // In a production app, you might use a more robust queueing system.
     const client = new GoogleAdsApiClient(refreshToken);
     client
       .analyzeAndStoreFraud(
