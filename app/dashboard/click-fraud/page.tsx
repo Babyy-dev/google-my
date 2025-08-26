@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth";
 import { useGoogleAds, FraudAnalysis } from "@/hooks/useGoogleAds";
+import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
 
 const initialFraudData: FraudAnalysis = {
   riskLevel: "low",
@@ -40,31 +41,15 @@ const initialFraudData: FraudAnalysis = {
 export default function ClickFraudPage() {
   const { session } = useAuth();
   const { analyzeFraud, loading, error } = useGoogleAds();
-  const [isConnected, setIsConnected] = useState(false);
+  const { isConnected, customerId, connectGoogleAds } = useGoogleAdsContext();
   const [fraudData, setFraudData] = useState<FraudAnalysis>(initialFraudData);
-  const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
-  const [customerId, setCustomerId] = useState("");
+  const [inputCustomerId, setInputCustomerId] = useState("");
 
   useEffect(() => {
-    const storedCustomerId = localStorage.getItem("google_ads_customer_id");
-    if (session?.provider_refresh_token && storedCustomerId) {
-      setCustomerId(storedCustomerId);
-      setIsConnected(true);
-      fetchDashboardData();
+    if (isConnected && customerId) {
+      fetchFraudData(customerId);
     }
-  }, [session]);
-
-  const fetchDashboardData = async () => {
-    try {
-      const response = await fetch("/api/dashboard/stats");
-      if (response.ok) {
-        const data = await response.json();
-        setRecentAlerts(data.recentAlerts);
-      }
-    } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
-    }
-  };
+  }, [isConnected, customerId]);
 
   const fetchFraudData = async (id: string) => {
     if (!session?.provider_refresh_token) return;
@@ -74,17 +59,14 @@ export default function ClickFraudPage() {
         session.provider_refresh_token
       );
       setFraudData(data);
-      await fetchDashboardData(); // Refresh alerts after analysis
     } catch (e) {
-      console.error(e);
+      console.error("Error fetching fraud data:", e);
     }
   };
 
   const handleConnect = () => {
-    if (!customerId) return;
-    localStorage.setItem("google_ads_customer_id", customerId);
-    setIsConnected(true);
-    fetchFraudData(customerId);
+    if (!inputCustomerId) return;
+    connectGoogleAds(inputCustomerId);
   };
 
   if (!isConnected) {
@@ -108,20 +90,18 @@ export default function ClickFraudPage() {
               <Input
                 id="customerId"
                 placeholder="Enter your 10-digit Customer ID"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                value={inputCustomerId}
+                onChange={(e) => setInputCustomerId(e.target.value)}
                 className="mt-1 text-center text-lg tracking-wider"
               />
               {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
             </div>
             <Button
               onClick={handleConnect}
-              disabled={!customerId || loading}
+              disabled={!inputCustomerId || loading}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {loading
-                ? "🔍 Analyzing Account..."
-                : "🚀 Analyze for Click Fraud"}
+              {loading ? "🔍 Connecting..." : "🚀 Connect & Analyze"}
             </Button>
           </CardContent>
         </Card>
@@ -194,7 +174,7 @@ export default function ClickFraudPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {recentAlerts.map((alert, index) => (
+              {fraudData.alerts.map((alert: any, index: number) => (
                 <TableRow key={index}>
                   <TableCell>{alert.ip}</TableCell>
                   <TableCell>{alert.location}</TableCell>

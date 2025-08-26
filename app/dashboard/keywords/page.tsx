@@ -20,6 +20,7 @@ import {
 import { useGoogleAds, NegativeKeywordAnalysis } from "@/hooks/useGoogleAds";
 import { useAuth } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
+import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
 
 const initialAnalysis: NegativeKeywordAnalysis = {
   totalSearchTerms: 0,
@@ -34,19 +35,16 @@ export default function KeywordsPage() {
   const { session } = useAuth();
   const { analyzeNegativeKeywords, addNegativeKeywords, loading, error } =
     useGoogleAds();
+  const { isConnected, customerId, connectGoogleAds } = useGoogleAdsContext();
   const [analysis, setAnalysis] =
     useState<NegativeKeywordAnalysis>(initialAnalysis);
-  const [customerId, setCustomerId] = useState("");
-  const [isConnected, setIsConnected] = useState(false);
+  const [inputCustomerId, setInputCustomerId] = useState("");
 
   useEffect(() => {
-    const storedCustomerId = localStorage.getItem("google_ads_customer_id");
-    if (session?.provider_refresh_token && storedCustomerId) {
-      setCustomerId(storedCustomerId);
-      setIsConnected(true);
-      handleAnalyze(storedCustomerId);
+    if (isConnected && customerId) {
+      handleAnalyze(customerId);
     }
-  }, [session]);
+  }, [isConnected, customerId]);
 
   const handleAnalyze = async (id: string) => {
     if (!session?.provider_refresh_token) return;
@@ -57,19 +55,17 @@ export default function KeywordsPage() {
       );
       setAnalysis(result);
     } catch (e) {
-      console.error(e);
+      console.error("Error analyzing keywords:", e);
     }
   };
 
   const handleConnect = () => {
-    if (!customerId) return;
-    localStorage.setItem("google_ads_customer_id", customerId);
-    setIsConnected(true);
-    handleAnalyze(customerId);
+    if (!inputCustomerId) return;
+    connectGoogleAds(inputCustomerId);
   };
 
   const handleAddKeywords = async (adGroupId: string, keywords: string[]) => {
-    if (!session?.provider_refresh_token) return;
+    if (!session?.provider_refresh_token || !customerId) return;
     try {
       await addNegativeKeywords(
         customerId.replace(/-/g, ""),
@@ -77,9 +73,10 @@ export default function KeywordsPage() {
         adGroupId,
         keywords
       );
-      // You can add a success message here
+      // Optionally, refetch the analysis to show the updated data
+      handleAnalyze(customerId);
     } catch (e) {
-      console.error(e);
+      console.error("Error adding keywords:", e);
     }
   };
 
@@ -104,18 +101,18 @@ export default function KeywordsPage() {
               <Input
                 id="customerId"
                 placeholder="Enter your 10-digit Customer ID"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                value={inputCustomerId}
+                onChange={(e) => setInputCustomerId(e.target.value)}
                 className="mt-1 text-center text-lg tracking-wider"
               />
               {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
             </div>
             <Button
               onClick={handleConnect}
-              disabled={!customerId || loading}
+              disabled={!inputCustomerId || loading}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {loading ? "🔍 Analyzing Keywords..." : "🚀 Analyze Keywords"}
+              {loading ? "🔍 Connecting..." : "🚀 Analyze Keywords"}
             </Button>
           </CardContent>
         </Card>
