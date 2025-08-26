@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -40,24 +40,27 @@ export default function KeywordsPage() {
     useState<NegativeKeywordAnalysis>(initialAnalysis);
   const [inputCustomerId, setInputCustomerId] = useState("");
 
+  const handleAnalyze = useCallback(
+    async (id: string) => {
+      if (!session?.provider_refresh_token) return;
+      try {
+        const result = await analyzeNegativeKeywords(
+          id.replace(/-/g, ""),
+          session.provider_refresh_token
+        );
+        setAnalysis(result);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [session, analyzeNegativeKeywords]
+  ); // Wrap function in useCallback
+
   useEffect(() => {
     if (isConnected && customerId) {
       handleAnalyze(customerId);
     }
-  }, [isConnected, customerId]);
-
-  const handleAnalyze = async (id: string) => {
-    if (!session?.provider_refresh_token) return;
-    try {
-      const result = await analyzeNegativeKeywords(
-        id.replace(/-/g, ""),
-        session.provider_refresh_token
-      );
-      setAnalysis(result);
-    } catch (e) {
-      console.error("Error analyzing keywords:", e);
-    }
-  };
+  }, [isConnected, customerId, handleAnalyze]); // THE FIX: Add handleAnalyze to dependency array
 
   const handleConnect = () => {
     if (!inputCustomerId) return;
@@ -73,10 +76,10 @@ export default function KeywordsPage() {
         adGroupId,
         keywords
       );
-      // Optionally, refetch the analysis to show the updated data
+      // Re-run analysis after adding keywords to refresh the data
       handleAnalyze(customerId);
     } catch (e) {
-      console.error("Error adding keywords:", e);
+      console.error(e);
     }
   };
 
@@ -112,7 +115,7 @@ export default function KeywordsPage() {
               disabled={!inputCustomerId || loading}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {loading ? "🔍 Connecting..." : "🚀 Analyze Keywords"}
+              {loading ? "🔍 Analyzing Keywords..." : "🚀 Analyze Keywords"}
             </Button>
           </CardContent>
         </Card>
