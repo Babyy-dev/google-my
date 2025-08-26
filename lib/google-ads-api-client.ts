@@ -36,7 +36,7 @@ export class GoogleAdsApiClient {
         "ad_group.id",
       ],
       metrics: ["metrics.clicks", "metrics.cost_micros"],
-      where: ["metrics.clicks > 0"], // THE FIX: This must be an array of strings
+      constraints: ["metrics.clicks > 0"], // THE FIX: Changed 'where' to 'constraints'
       limit: 1000,
     });
 

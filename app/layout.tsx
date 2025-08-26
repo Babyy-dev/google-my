@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/layout/top-nav";
-import { Providers } from "./providers"; // Import the new Providers component
+import { AuthProvider } from "@/lib/auth"; // Import the provider
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +30,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
+        <AuthProvider>
           {" "}
-          {/* Use the central Providers component */}
+          {/* Use the provider to wrap everything */}
           <TopNav />
           {children}
-        </Providers>
+        </AuthProvider>
       </body>
     </html>
   );
