@@ -98,5 +98,31 @@ export interface Database {
     CompositeTypes: {
       [_ in never]: never;
     };
+    fraud_alerts: {
+      Row: {
+        id: number;
+        user_id: string;
+        google_ads_account_id: string;
+        ip_address: string;
+        timestamp: string;
+        reason: string;
+        cost: number;
+        campaign_id: string;
+        ad_group_id: string;
+        created_at: string;
+      };
+      Insert: {
+        id?: number;
+        user_id: string;
+        google_ads_account_id: string;
+        ip_address: string;
+        timestamp: string;
+        reason: string;
+        cost: number;
+        campaign_id: string;
+        ad_group_id: string;
+        created_at?: string;
+      };
+    };
   };
 }

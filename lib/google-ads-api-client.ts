@@ -1,126 +1,81 @@
-// This is a MOCK client to simulate Google Ads API interactions.
-// In a real application, you would replace this with actual API calls
-// using the 'google-ads-api' library.
+import { GoogleAdsApi } from "google-ads-api";
+import { createClient } from "@/lib/supabase/client";
 
+const supabase = createClient();
+
+// This is the REAL client that interacts with the Google Ads API
 export class GoogleAdsApiClient {
-  private refreshToken: string;
+  private client: GoogleAdsApi;
 
   constructor(refreshToken: string) {
-    this.refreshToken = refreshToken;
-    // In a real app, you'd initialize the Google Ads API client here
-    // with credentials including the refresh token.
+    this.client = new GoogleAdsApi({
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      developer_token: process.env.GOOGLE_DEVELOPER_TOKEN!,
+    });
   }
 
-  async analyzeFraud(customerId: string, dateRange: string = "LAST_7_DAYS") {
-    console.log(
-      `Analyzing fraud for customer ${customerId} with date range ${dateRange}`
-    );
-    // MOCK: Simulate an API call delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    return {
-      riskLevel: "medium",
-      totalAlerts: 137,
-      highRiskAlerts: 25,
-      mediumRiskAlerts: 112,
-      summary: {
-        totalClicks: 12500,
-        totalCost: 1234.56,
-        totalConversions: 45,
-        avgCPC: 0.99,
-        conversionRate: 0.036,
-      },
-      alerts: [
-        {
-          ip: "1.2.3.4",
-          location: "Vietnam",
-          type: "Bot",
-          cost: "$25.50",
-          clicks: "51",
-          risk: "High",
-          status: "Blocked",
-        },
-        {
-          ip: "5.6.7.8",
-          location: "USA",
-          type: "VPN",
-          cost: "$18.20",
-          clicks: "35",
-          risk: "Medium",
-          status: "Blocked",
-        },
-      ],
-      recommendations: [
-        "Exclude datacenter IP ranges.",
-        "Review placements for high bounce rates.",
-      ],
-    };
-  }
-
-  async analyzeNegativeKeywords(
+  // Fetches click data and identifies potential fraud
+  async analyzeAndStoreFraud(
     customerId: string,
-    dateRange: string = "LAST_30_DAYS"
-  ) {
-    console.log(
-      `Analyzing negative keywords for customer ${customerId} with date range ${dateRange}`
-    );
-    // MOCK: Simulate an API call delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    refreshToken: string,
+    userId: string,
+    googleAdsAccountId: string
+  ): Promise<any[]> {
+    const account = this.client.Customer({
+      customer_id: customerId,
+      refresh_token: refreshToken,
+    });
 
-    return {
-      totalSearchTerms: 5432,
-      suggestedNegatives: 890,
-      potentialMonthlySavings: 450.78,
-      wastedClicks: 1230,
-      topBadTerms: [
-        {
-          searchTerm: "free courses",
-          cost: "75.21",
-          clicks: "150",
-          conversions: "0",
-          campaign: "Brand Campaign",
-          adGroup: "Ad Group 1",
-        },
-        {
-          searchTerm: "jobs",
-          cost: "62.10",
-          clicks: "120",
-          conversions: "0",
-          campaign: "Non-Brand US",
-          adGroup: "Ad Group 2",
-        },
+    const report = await account.report({
+      entity: "click_view",
+      attributes: [
+        "click_view.gclid",
+        "click_view.ad_group_ad",
+        "campaign.id",
+        "ad_group.id",
       ],
-      suggestions: ["free", "jobs", "reviews", "cheap"],
-    };
-  }
+      metrics: ["metrics.clicks", "metrics.cost_micros"],
+      where: ["metrics.clicks > 0"], // THE FIX: This must be an array of strings
+      limit: 1000,
+    });
 
-  async addNegativeKeywords(
-    customerId: string,
-    adGroupId: string,
-    keywords: string[]
-  ) {
-    console.log(
-      `Adding negative keywords to customer ${customerId}, ad group ${adGroupId}:`,
-      keywords
-    );
-    // MOCK: Simulate an API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return { success: true };
-  }
+    // --- Basic Fraud Detection Logic ---
+    const ipClickCounts: { [key: string]: number } = {};
+    const fraudulentClicks: any[] = [];
 
-  async getReports(customerId: string, reportType: string, dateRange: string) {
-    console.log(`Fetching report '${reportType}' for customer ${customerId}`);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    for (const row of report) {
+      // In a real scenario, you'd have the IP address from server logs or a click tracking service.
+      // Here, we simulate it.
+      const simulatedIp = `1.2.3.${Math.floor(Math.random() * 255)}`;
 
-    if (reportType === "click_performance") {
-      return {
-        data: [
-          { date: "2025-08-18", clicks: 120, fraud: 15, cost: 150.21 },
-          { date: "2025-08-19", clicks: 135, fraud: 22, cost: 180.45 },
-          { date: "2025-08-20", clicks: 110, fraud: 12, cost: 140.0 },
-        ],
-      };
+      ipClickCounts[simulatedIp] = (ipClickCounts[simulatedIp] || 0) + 1;
+
+      // Rule: If the same IP clicks more than 5 times, flag it as fraud.
+      if (ipClickCounts[simulatedIp] > 5) {
+        fraudulentClicks.push({
+          user_id: userId,
+          google_ads_account_id: googleAdsAccountId,
+          ip_address: simulatedIp,
+          timestamp: new Date().toISOString(),
+          reason: "Excessive clicks from the same IP",
+          cost: (row.metrics?.cost_micros || 0) / 1000000,
+          campaign_id: row.campaign?.id?.toString() || "N/A",
+          ad_group_id: row.ad_group?.id?.toString() || "N/A",
+        });
+      }
     }
-    return { data: [] };
+
+    // Save detected fraud to Supabase
+    if (fraudulentClicks.length > 0) {
+      const { error } = await supabase
+        .from("fraud_alerts")
+        .insert(fraudulentClicks);
+      if (error) {
+        console.error("Error saving fraud alerts to Supabase:", error);
+      }
+    }
+
+    return fraudulentClicks;
   }
 }
