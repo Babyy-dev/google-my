@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -38,6 +38,17 @@ const initialFraudData: FraudAnalysis = {
   recommendations: [],
 };
 
+// Define a type for the alert prop
+interface Alert {
+  ip: string;
+  location: string;
+  type: string;
+  cost: string;
+  clicks: string;
+  risk: "High" | "Medium" | "Low";
+  status: "Blocked" | "Monitoring";
+}
+
 export default function ClickFraudPage() {
   const { session } = useAuth();
   const { analyzeFraud, loading, error } = useGoogleAds();
@@ -45,24 +56,27 @@ export default function ClickFraudPage() {
   const [fraudData, setFraudData] = useState<FraudAnalysis>(initialFraudData);
   const [inputCustomerId, setInputCustomerId] = useState("");
 
+  const fetchFraudData = useCallback(
+    async (id: string) => {
+      if (!session?.provider_refresh_token) return;
+      try {
+        const data = await analyzeFraud(
+          id.replace(/-/g, ""),
+          session.provider_refresh_token
+        );
+        setFraudData(data);
+      } catch (e) {
+        console.error("Error fetching fraud data:", e);
+      }
+    },
+    [session, analyzeFraud]
+  );
+
   useEffect(() => {
     if (isConnected && customerId) {
       fetchFraudData(customerId);
     }
-  }, [isConnected, customerId]);
-
-  const fetchFraudData = async (id: string) => {
-    if (!session?.provider_refresh_token) return;
-    try {
-      const data = await analyzeFraud(
-        id.replace(/-/g, ""),
-        session.provider_refresh_token
-      );
-      setFraudData(data);
-    } catch (e) {
-      console.error("Error fetching fraud data:", e);
-    }
-  };
+  }, [isConnected, customerId, fetchFraudData]);
 
   const handleConnect = () => {
     if (!inputCustomerId) return;
@@ -174,7 +188,7 @@ export default function ClickFraudPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fraudData.alerts.map((alert: any, index: number) => (
+              {fraudData.alerts.map((alert: Alert, index: number) => (
                 <TableRow key={index}>
                   <TableCell>{alert.ip}</TableCell>
                   <TableCell>{alert.location}</TableCell>
@@ -193,7 +207,15 @@ export default function ClickFraudPage() {
   );
 }
 
-function KpiCard({ title, value, change }: any) {
+function KpiCard({
+  title,
+  value,
+  change,
+}: {
+  title: string;
+  value: string;
+  change: string;
+}) {
   return (
     <Card className="overflow-hidden border-2 shadow-lg">
       <CardContent className="p-6">

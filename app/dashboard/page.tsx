@@ -2,15 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { LineChart } from "@/components/charts/line-chart";
 import { BarChart } from "@/components/charts/bar-chart";
 import {
@@ -23,7 +16,32 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth";
 
-const initialDashboardData = {
+// Define a type for the alert prop
+interface RecentAlert {
+  ip: string;
+  location: string;
+  type: string;
+  cost: string;
+  clicks: string;
+  risk: "High" | "Medium" | "Low";
+  status: "Blocked" | "Monitoring";
+}
+
+interface DashboardData {
+  stats: {
+    savedBudget: string;
+    blockedIPs: string;
+    keywordsBlocked: string;
+    detectionRate: string;
+  };
+  charts: {
+    fraudVsValid: Array<Record<string, number | string>>;
+    budgetSavings: Array<Record<string, number | string>>;
+  };
+  recentAlerts: RecentAlert[];
+}
+
+const initialDashboardData: DashboardData = {
   stats: {
     savedBudget: "$0",
     blockedIPs: "0",
@@ -42,10 +60,25 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const [isConnected, setIsConnected] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [dashboardData, setDashboardData] = useState<any>(initialDashboardData);
+  const [dashboardData, setDashboardData] =
+    useState<DashboardData>(initialDashboardData);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const response = await fetch("/api/dashboard/stats");
+        if (response.ok) {
+          const data = await response.json();
+          setDashboardData(data);
+        } else {
+          console.error("Failed to fetch dashboard data:", response.statusText);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      }
+    };
+
     const initDashboard = async () => {
       if (searchParams?.get("connected") === "true") {
         setIsConnected(true);
@@ -59,21 +92,6 @@ export default function DashboardPage() {
         await fetchDashboardData();
       }
       setLoading(false);
-    };
-
-    const fetchDashboardData = async () => {
-      try {
-        const response = await fetch("/api/dashboard/stats");
-        if (response.ok) {
-          const data = await response.json();
-          setDashboardData(data);
-        } else {
-          // If the API fails, we still have the initial data
-          console.error("Failed to fetch dashboard data:", response.statusText);
-        }
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      }
     };
 
     initDashboard();
@@ -175,37 +193,39 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dashboardData.recentAlerts.map((alert: any, index: number) => (
-                  <TableRow key={index}>
-                    <TableCell>{alert.ip}</TableCell>
-                    <TableCell>{alert.location}</TableCell>
-                    <TableCell>{alert.type}</TableCell>
-                    <TableCell>{alert.cost}</TableCell>
-                    <TableCell>{alert.clicks}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          alert.risk === "High"
-                            ? "destructive"
-                            : alert.risk === "Medium"
-                            ? "warning"
-                            : "default"
-                        }
-                      >
-                        {alert.risk}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          alert.status === "Blocked" ? "success" : "secondary"
-                        }
-                      >
-                        {alert.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {dashboardData.recentAlerts.map(
+                  (alert: RecentAlert, index: number) => (
+                    <TableRow key={index}>
+                      <TableCell>{alert.ip}</TableCell>
+                      <TableCell>{alert.location}</TableCell>
+                      <TableCell>{alert.type}</TableCell>
+                      <TableCell>{alert.cost}</TableCell>
+                      <TableCell>{alert.clicks}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            alert.risk === "High"
+                              ? "destructive"
+                              : alert.risk === "Medium"
+                              ? "warning"
+                              : "default"
+                          }
+                        >
+                          {alert.risk}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            alert.status === "Blocked" ? "success" : "secondary"
+                          }
+                        >
+                          {alert.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  )
+                )}
               </TableBody>
             </Table>
           </CardContent>

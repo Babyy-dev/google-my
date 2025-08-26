@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
-  // THE FIX: Add 'await' before createClient()
   const supabase = await createClient();
   const {
     data: { user },
@@ -64,10 +63,13 @@ export async function POST(request: NextRequest) {
       message: "Google Ads account connected successfully",
       account: data,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Use 'unknown' and type check it
     console.error("Connect API error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
     return NextResponse.json(
-      { error: "Failed to process connection", details: error.message },
+      { error: "Failed to process connection", details: errorMessage },
       { status: 500 }
     );
   }

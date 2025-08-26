@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Get the linked google_ads_account_id from your database
   const { data: accountData, error: accountError } = await supabase
     .from("google_ads_accounts")
     .select("id")
@@ -53,10 +52,13 @@ export async function POST(request: NextRequest) {
         alerts: analysisResults,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Use 'unknown' and type check it
     console.error("Google Ads API Error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
     return NextResponse.json(
-      { error: "Failed to analyze fraud patterns", details: error.message },
+      { error: "Failed to analyze fraud patterns", details: errorMessage },
       { status: 500 }
     );
   }
