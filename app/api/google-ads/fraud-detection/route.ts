@@ -36,10 +36,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const client = new GoogleAdsApiClient(refreshToken);
+    const client = new GoogleAdsApiClient(refreshToken, customerId);
     const analysisResults = await client.analyzeAndStoreFraud(
-      customerId,
-      refreshToken,
       user.id,
       accountData.id
     );
@@ -48,40 +46,33 @@ export async function POST(request: NextRequest) {
       (sum, alert) => sum + alert.cost,
       0
     );
-    const totalClicks = analysisResults.length * 5;
-    const highRiskAlerts = analysisResults.filter((a) =>
-      a.reason.includes("Excessive")
-    ).length;
+    const highRiskAlerts = analysisResults.length;
 
     const fullAnalysis = {
-      riskLevel:
-        highRiskAlerts > 5 ? "high" : highRiskAlerts > 0 ? "medium" : "low",
+      riskLevel: highRiskAlerts > 5 ? "high" : "low",
       totalAlerts: analysisResults.length,
       highRiskAlerts: highRiskAlerts,
-      mediumRiskAlerts: analysisResults.length - highRiskAlerts,
+      mediumRiskAlerts: 0,
       summary: {
-        totalClicks: 1578,
-        totalCost: 123.45,
-        totalConversions: 42,
-        avgCPC: totalClicks > 0 ? 123.45 / 1578 : 0,
-        conversionRate: totalClicks > 0 ? (42 / 1578) * 100 : 0,
+        totalClicks: 0, // This would need another API call to get total clicks
+        totalCost: totalCost,
+        totalConversions: 0, // This would need another API call
+        avgCPC: 0,
+        conversionRate: 0,
       },
       alerts:
         analysisResults.length > 0
           ? analysisResults.map((a) => ({
               ip: a.ip_address,
-              location: "USA",
-              type: "Bot Traffic",
+              location: "Unknown",
+              type: "Bot Traffic (Simulated)",
               cost: `$${a.cost.toFixed(2)}`,
-              clicks: "5",
+              clicks: "N/A",
               risk: "High" as "High" | "Medium" | "Low",
               status: "Blocked" as "Blocked" | "Monitoring",
             }))
           : [],
-      recommendations: [
-        "Increase budget on Campaign XYZ",
-        "Add 'free' as a negative keyword",
-      ],
+      recommendations: [],
     };
 
     return NextResponse.json({
