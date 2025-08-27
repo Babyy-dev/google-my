@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         scopes: "https://www.googleapis.com/auth/adwords",
         queryParams: {
           access_type: "offline",
-          prompt: "consent",
+          // prompt: "consent",
         },
       },
     });
