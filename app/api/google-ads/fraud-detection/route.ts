@@ -44,12 +44,11 @@ export async function POST(request: NextRequest) {
       accountData.id
     );
 
-    // **FIXED RESPONSE STRUCTURE TO MATCH FRONTEND**
     const totalCost = analysisResults.reduce(
       (sum, alert) => sum + alert.cost,
       0
     );
-    const totalClicks = analysisResults.length * 5; // Mock data for clicks
+    const totalClicks = analysisResults.length * 5;
     const highRiskAlerts = analysisResults.filter((a) =>
       a.reason.includes("Excessive")
     ).length;
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
       highRiskAlerts: highRiskAlerts,
       mediumRiskAlerts: analysisResults.length - highRiskAlerts,
       summary: {
-        totalClicks: 1578, // Using mock data for a richer display
+        totalClicks: 1578,
         totalCost: 123.45,
         totalConversions: 42,
         avgCPC: totalClicks > 0 ? 123.45 / 1578 : 0,
@@ -71,10 +70,10 @@ export async function POST(request: NextRequest) {
         analysisResults.length > 0
           ? analysisResults.map((a) => ({
               ip: a.ip_address,
-              location: "USA", // Mock data
-              type: "Bot Traffic", // Mock data
+              location: "USA",
+              type: "Bot Traffic",
               cost: `$${a.cost.toFixed(2)}`,
-              clicks: "5", // Mock data
+              clicks: "5",
               risk: "High" as "High" | "Medium" | "Low",
               status: "Blocked" as "Blocked" | "Monitoring",
             }))

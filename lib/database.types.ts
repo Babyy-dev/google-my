@@ -123,6 +123,18 @@ export interface Database {
         ad_group_id: string;
         created_at?: string;
       };
+      Update: {
+        id?: number;
+        user_id?: string;
+        google_ads_account_id?: string;
+        ip_address?: string;
+        timestamp?: string;
+        reason?: string;
+        cost?: number;
+        campaign_id?: string;
+        ad_group_id?: string;
+        created_at?: string;
+      };
     };
   };
 }
