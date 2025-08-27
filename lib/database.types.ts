@@ -53,6 +53,32 @@ export interface Database {
           updated_at?: string;
         };
       };
+      ad_clicks: {
+        Row: {
+          id: number;
+          gclid: string | null;
+          ip_address: string | null;
+          user_agent: string | null;
+          landing_page_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          gclid?: string | null;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          landing_page_url?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          gclid?: string | null;
+          ip_address?: string | null;
+          user_agent?: string | null;
+          landing_page_url?: string | null;
+          created_at?: string;
+        };
+      };
       user_profiles: {
         Row: {
           id: string;

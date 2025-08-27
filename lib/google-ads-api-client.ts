@@ -29,44 +29,90 @@ export class GoogleAdsApiClient {
     this.refreshToken = refreshToken;
   }
 
-  async analyzeAndStoreFraud(
-    userId: string,
-    googleAdsAccountId: string
-  ): Promise<FraudAlertInsert[]> {
-    const customer = this.client.Customer({
+  private getCustomer() {
+    return this.client.Customer({
       customer_id: this.customerId,
       login_customer_id: this.customerId,
       refresh_token: this.refreshToken,
     });
+  }
 
-    const report = await customer.report({
-      entity: "click_view",
-      attributes: ["click_view.gclid", "campaign.id", "ad_group.id"],
-      metrics: ["metrics.cost_micros"],
-      date_constant: "LAST_7_DAYS",
+  // New, reliable validation method
+  async validate(): Promise<void> {
+    const customer = this.getCustomer();
+    // A simple, low-cost query to verify that the credentials and customerId are valid.
+    await customer.report({
+      entity: "customer",
+      attributes: ["customer.id"],
+      limit: 1,
     });
+  }
 
-    const clickCounts: { [key: string]: number } = {};
-    const fraudulentClicks: FraudAlertInsert[] = [];
+  async analyzeAndStoreFraud(
+    userId: string,
+    googleAdsAccountId: string
+  ): Promise<FraudAlertInsert[]> {
+    const customer = this.getCustomer();
+    const supabase = createClient();
 
-    for (const row of report) {
-      const gclid = row.click_view?.gclid;
-      if (gclid) {
-        clickCounts[gclid] = (clickCounts[gclid] || 0) + 1;
-        if (clickCounts[gclid] > 1) {
-          fraudulentClicks.push({
-            user_id: userId,
-            google_ads_account_id: googleAdsAccountId,
-            ip_address: "Simulated IP (from GCLID)",
-            timestamp: new Date().toISOString(),
-            reason: "Simulated: Multiple clicks with the same GCLID",
-            cost: (row.metrics?.cost_micros || 0) / 1000000,
-            campaign_id: (row.campaign?.id || "").toString(),
-            ad_group_id: (row.ad_group?.id || "").toString(),
-          });
+    const sevenDaysAgo = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const { data: clicks, error: clickError } = await supabase
+      .from("ad_clicks")
+      .select("ip_address, gclid")
+      .gte("created_at", sevenDaysAgo);
+
+    if (clickError) {
+      console.error("Error fetching clicks from DB:", clickError);
+      return [];
+    }
+
+    const ipCounts: { [key: string]: number } = {};
+    const fraudulentIps = new Set<string>();
+
+    for (const click of clicks) {
+      if (click.ip_address) {
+        ipCounts[click.ip_address] = (ipCounts[click.ip_address] || 0) + 1;
+        if (ipCounts[click.ip_address] > 1) {
+          fraudulentIps.add(click.ip_address);
         }
       }
     }
+
+    if (fraudulentIps.size === 0) {
+      return [];
+    }
+
+    const fraudulentGclids = clicks
+      .filter((c) => c.ip_address && fraudulentIps.has(c.ip_address) && c.gclid)
+      .map((c) => `'${c.gclid}'`);
+
+    if (fraudulentGclids.length === 0) {
+      return [];
+    }
+
+    const report = await customer.report({
+      entity: "click_view",
+      attributes: ["campaign.id", "ad_group.id", "click_view.gclid"],
+      metrics: ["metrics.cost_micros"],
+      constraints: {
+        "click_view.gclid": { IN: fraudulentGclids },
+      } as any,
+    });
+
+    const fraudulentClicks: FraudAlertInsert[] = report.map((row) => ({
+      user_id: userId,
+      google_ads_account_id: googleAdsAccountId,
+      ip_address:
+        clicks.find((c) => c.gclid === row.click_view?.gclid)?.ip_address ||
+        "Unknown",
+      timestamp: new Date().toISOString(),
+      reason: "Excessive clicks from the same IP",
+      cost: (row.metrics?.cost_micros || 0) / 1000000,
+      campaign_id: (row.campaign?.id || "").toString(),
+      ad_group_id: (row.ad_group?.id || "").toString(),
+    }));
 
     if (fraudulentClicks.length > 0) {
       const { error } = await supabase
@@ -79,11 +125,7 @@ export class GoogleAdsApiClient {
   }
 
   async analyzeNegativeKeywords(dateRange: string = "LAST_30_DAYS") {
-    const customer = this.client.Customer({
-      customer_id: this.customerId,
-      login_customer_id: this.customerId,
-      refresh_token: this.refreshToken,
-    });
+    const customer = this.getCustomer();
 
     const report = await customer.report({
       entity: "search_term_view",
@@ -133,11 +175,7 @@ export class GoogleAdsApiClient {
   }
 
   async addNegativeKeywords(adGroupId: string, keywords: string[]) {
-    const customer = this.client.Customer({
-      customer_id: this.customerId,
-      login_customer_id: this.customerId,
-      refresh_token: this.refreshToken,
-    });
+    const customer = this.getCustomer();
 
     const response = await customer.mutateResources([
       {
@@ -147,7 +185,7 @@ export class GoogleAdsApiClient {
           ad_group: `customers/${this.customerId}/adGroups/${adGroupId}`,
           negative: true,
           keyword: {
-            text: keywords[0], // Assuming one keyword for simplicity
+            text: keywords[0],
             match_type: enums.KeywordMatchType.BROAD,
           },
         },

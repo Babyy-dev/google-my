@@ -50,7 +50,7 @@ interface Alert {
 
 export default function ClickFraudPage() {
   const { session } = useAuth();
-  const { analyzeFraud, loading, error } = useGoogleAds();
+  const { analyzeFraud, loading, error: hookError } = useGoogleAds();
   const {
     isConnected,
     customerId,
@@ -60,6 +60,7 @@ export default function ClickFraudPage() {
   const [fraudData, setFraudData] = useState<FraudAnalysis>(initialFraudData);
   const [inputCustomerId, setInputCustomerId] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const fetchFraudData = useCallback(
     async (id: string) => {
@@ -89,6 +90,7 @@ export default function ClickFraudPage() {
       return;
     }
     setIsConnecting(true);
+    setConnectError(null);
     try {
       const response = await fetch("/api/google-ads/connect", {
         method: "POST",
@@ -105,13 +107,14 @@ export default function ClickFraudPage() {
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(
-          errorData.details || "Failed to connect Google Ads account."
+          errorData.error || "Failed to connect Google Ads account."
         );
       }
 
       connectGoogleAds(inputCustomerId);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Connection failed", e);
+      setConnectError(e.message);
     } finally {
       setIsConnecting(false);
     }
@@ -150,14 +153,16 @@ export default function ClickFraudPage() {
                 onChange={(e) => setInputCustomerId(e.target.value)}
                 className="mt-1 text-center text-lg tracking-wider"
               />
-              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+              {connectError && (
+                <p className="text-red-500 text-sm mt-2">{connectError}</p>
+              )}
             </div>
             <Button
               onClick={handleConnect}
               disabled={!inputCustomerId || loading || isConnecting}
               className="w-full bg-primary hover:bg-primary/90"
             >
-              {isConnecting ? "🔗 Connecting..." : "🚀 Connect & Analyze"}
+              {isConnecting ? "🔗 Validating..." : "🚀 Connect & Analyze"}
             </Button>
           </CardContent>
         </Card>

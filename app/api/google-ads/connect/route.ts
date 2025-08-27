@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { GoogleAdsApiClient } from "@/lib/google-ads-api-client";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -22,6 +23,19 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // --- REAL-TIME VALIDATION STEP ---
+    try {
+      const client = new GoogleAdsApiClient(refreshToken, customerId);
+      await client.validate();
+    } catch (validationError) {
+      console.error("Google Ads validation failed:", validationError);
+      return NextResponse.json(
+        { error: "Invalid Google Ads Customer ID or credentials." },
+        { status: 400 }
+      );
+    }
+    // --- END VALIDATION STEP ---
 
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
@@ -64,7 +78,6 @@ export async function POST(request: NextRequest) {
       account: data,
     });
   } catch (error: unknown) {
-    // Use 'unknown' and type check it
     console.error("Connect API error:", error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
