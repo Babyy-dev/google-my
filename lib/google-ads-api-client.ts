@@ -143,7 +143,8 @@ export class GoogleAdsApiClient {
         "Unknown",
       timestamp: new Date().toISOString(),
       reason:
-        fraudulentGclidsWithReason.get(row.click_view?.gclid!) ||
+        (row.click_view?.gclid &&
+          fraudulentGclidsWithReason.get(row.click_view.gclid)) ||
         "Suspicious Activity",
       cost: (row.metrics?.cost_micros || 0) / 1000000,
       campaign_id: (row.campaign?.id || "").toString(),
@@ -205,7 +206,9 @@ export class GoogleAdsApiClient {
       ),
       topBadTerms: topBadTerms,
       suggestions: [
-        ...new Set(topBadTerms.map((t) => t.searchTerm?.split(" ")).flat()),
+        ...new Set(
+          topBadTerms.map((t) => (t.searchTerm || "").split(" ")).flat()
+        ),
       ].filter(Boolean),
     };
   }
@@ -213,7 +216,7 @@ export class GoogleAdsApiClient {
   async addNegativeKeywords(adGroupId: string, keywords: string[]) {
     const customer = this.getCustomer();
 
-    const response = await customer.mutateResources([
+    await customer.mutateResources([
       {
         entity: "ad_group_criterion",
         operation: "create",
@@ -257,5 +260,47 @@ export class GoogleAdsApiClient {
     } catch (error) {
       console.error(`Failed to block IPs for campaign ${campaignId}:`, error);
     }
+  }
+
+  async getReports(
+    reportType: "click_performance" | "search_terms" | "budget_data",
+    dateRange: string = "LAST_7_DAYS"
+  ): Promise<any> {
+    const customer = this.getCustomer();
+    let queryOptions: any = { date_constant: dateRange };
+
+    switch (reportType) {
+      case "click_performance":
+        queryOptions = {
+          ...queryOptions,
+          entity: "click_view",
+          attributes: ["campaign.name", "ad_group.name", "click_view.gclid"],
+          metrics: ["metrics.clicks", "metrics.cost_micros"],
+        };
+        break;
+      case "search_terms":
+        queryOptions = {
+          ...queryOptions,
+          entity: "search_term_view",
+          attributes: ["search_term_view.search_term", "campaign.name"],
+          metrics: [
+            "metrics.clicks",
+            "metrics.cost_micros",
+            "metrics.conversions",
+          ],
+        };
+        break;
+      case "budget_data":
+        queryOptions = {
+          ...queryOptions,
+          entity: "campaign_budget",
+          attributes: ["campaign.name", "campaign_budget.amount_micros"],
+        };
+        break;
+      default:
+        throw new Error("Invalid report type specified.");
+    }
+
+    return await customer.report(queryOptions);
   }
 }

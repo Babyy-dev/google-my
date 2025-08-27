@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/api/google-ads/reports/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { GoogleAdsApiClient } from "@/lib/google-ads-api-client";
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { customerId, refreshToken, reportType, dateRange } =
+    const { customerId, refreshToken, loginCustomerId, reportType, dateRange } =
       await request.json();
 
     if (!customerId || !refreshToken || !reportType) {
@@ -23,12 +24,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = new GoogleAdsApiClient(refreshToken);
-    const reportData = await client.getReports(
+    const client = new GoogleAdsApiClient(
+      refreshToken,
       customerId,
-      reportType,
-      dateRange
+      loginCustomerId
     );
+    const reportData = await client.getReports(reportType, dateRange);
 
     return NextResponse.json({
       success: true,

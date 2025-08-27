@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/supabase/server.ts
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { Database } from "../database.types";

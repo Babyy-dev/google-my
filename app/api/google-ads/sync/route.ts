@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/api/google-ads/sync/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { GoogleAdsApiClient } from "@/lib/google-ads-api-client";
@@ -23,12 +24,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // This is a background task, so we don't need to wait for it to finish.
-    const client = new GoogleAdsApiClient(refreshToken);
+    // Get the login_customer_id from the database to handle MCC accounts
+    const { data: accountData, error: accountError } = await supabase
+      .from("google_ads_accounts")
+      .select("login_customer_id")
+      .eq("id", googleAdsAccountId)
+      .single();
+
+    if (accountError) {
+      console.error("Sync error fetching account data:", accountError);
+      throw new Error(
+        "Could not retrieve Google Ads account details for sync."
+      );
+    }
+
+    // Correctly instantiate the client with all required arguments
+    const client = new GoogleAdsApiClient(
+      refreshToken,
+      customerId,
+      accountData?.login_customer_id || undefined
+    );
+
+    // This is a background task, so we don't wait for it to finish.
     client
       .analyzeAndStoreFraud(
-        customerId,
-        refreshToken,
+        supabase, // Pass the Supabase client instance
         user.id,
         googleAdsAccountId
       )

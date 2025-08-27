@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/api/auth/callback/route.ts
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -11,6 +12,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Redirect to the dashboard after session is handled.
-  // The dashboard will now manage the connection status.
   return NextResponse.redirect(`${origin}/dashboard`);
 }
