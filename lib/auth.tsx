@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/auth.tsx
 "use client";
 
 import { useContext, useEffect, useState } from "react";
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       provider: "google",
       options: {
         redirectTo: `${location.origin}/api/auth/callback`,
+        scopes: "https://www.googleapis.com/auth/adwords",
         queryParams: {
           access_type: "offline",
           prompt: "consent",

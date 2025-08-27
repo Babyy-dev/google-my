@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/dashboard/keywords/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -74,6 +75,20 @@ export default function KeywordsPage() {
     }
     setIsConnecting(true);
     try {
+      const validationResponse = await fetch("/api/google-ads/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: inputCustomerId.replace(/-/g, ""),
+          refreshToken: session.provider_refresh_token,
+        }),
+      });
+
+      if (!validationResponse.ok) {
+        const errorData = await validationResponse.json();
+        throw new Error(errorData.error || "Invalid Customer ID.");
+      }
+
       const response = await fetch("/api/google-ads/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

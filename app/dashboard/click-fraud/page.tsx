@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/dashboard/click-fraud/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -71,7 +72,7 @@ export default function ClickFraudPage() {
           session.provider_refresh_token
         );
         setFraudData(data);
-      } catch (e) {
+      } catch (e: any) {
         console.error("Error fetching fraud data:", e);
       }
     },
@@ -92,11 +93,28 @@ export default function ClickFraudPage() {
     setIsConnecting(true);
     setConnectError(null);
     try {
-      const response = await fetch("/api/google-ads/connect", {
+      const validationResponse = await fetch("/api/google-ads/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerId: inputCustomerId.replace(/-/g, ""),
+          refreshToken: session.provider_refresh_token,
+        }),
+      });
+
+      const validationData = await validationResponse.json();
+      if (!validationResponse.ok) {
+        throw new Error(validationData.error || "Invalid Customer ID.");
+      }
+
+      const { loginCustomerId } = validationData;
+
+      const connectResponse = await fetch("/api/google-ads/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: inputCustomerId.replace(/-/g, ""),
+          loginCustomerId: loginCustomerId,
           accessToken: session.provider_token,
           refreshToken: session.provider_refresh_token,
           accountName: `Google Ads ${inputCustomerId}`,
@@ -104,14 +122,14 @@ export default function ClickFraudPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!connectResponse.ok) {
+        const errorData = await connectResponse.json();
         throw new Error(
           errorData.error || "Failed to connect Google Ads account."
         );
       }
 
-      connectGoogleAds(inputCustomerId);
+      connectGoogleAds(inputCustomerId, loginCustomerId);
     } catch (e: any) {
       console.error("Connection failed", e);
       setConnectError(e.message);
@@ -135,7 +153,7 @@ export default function ClickFraudPage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">🛡️ Connect to Google Ads</CardTitle>
             <CardDescription>
-              Enter your Google Ads Customer ID to begin fraud analysis.
+              Enter your Google Ads **Client Customer ID** to begin analysis.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
@@ -144,11 +162,11 @@ export default function ClickFraudPage() {
                 htmlFor="customerId"
                 className="text-sm font-medium text-gray-700"
               >
-                Google Ads Customer ID (e.g., 123-456-7890)
+                Google Ads Client ID (e.g., 123-456-7890)
               </label>
               <Input
                 id="customerId"
-                placeholder="Enter your 10-digit Customer ID"
+                placeholder="Enter your 10-digit Client ID"
                 value={inputCustomerId}
                 onChange={(e) => setInputCustomerId(e.target.value)}
                 className="mt-1 text-center text-lg tracking-wider"
@@ -189,7 +207,7 @@ export default function ClickFraudPage() {
             />
             <KpiCard
               title="Potential Budget Saved"
-              value={`$${fraudData.summary.totalCost.toFixed(0)}`}
+              value={`$${fraudData.summary.totalCost.toFixed(2)}`}
               change="over 7 days"
             />
             <KpiCard

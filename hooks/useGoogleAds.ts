@@ -1,7 +1,9 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/hooks/useGoogleAds.ts
 "use client";
 
 import { useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
+import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
 
 export interface GoogleAdsAccount {
   customerId: string;
@@ -36,34 +38,9 @@ export interface NegativeKeywordAnalysis {
 
 export function useGoogleAds() {
   const { user } = useAuth();
+  const { loginCustomerId } = useGoogleAdsContext();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const connectGoogleAds = useCallback(async (): Promise<
-    GoogleAdsAccount[]
-  > => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      const mockAccounts: GoogleAdsAccount[] = [
-        {
-          customerId: "1234567890",
-          name: "Demo Account - Digital Marketing Pro",
-          currencyCode: "USD",
-        },
-      ];
-
-      return mockAccounts;
-    } catch (err: any) {
-      setError(err.message || "Failed to connect Google Ads account");
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const analyzeFraud = useCallback(
     async (
@@ -84,6 +61,7 @@ export function useGoogleAds() {
             customerId,
             refreshToken,
             dateRange,
+            loginCustomerId,
           }),
         });
 
@@ -103,7 +81,7 @@ export function useGoogleAds() {
         setLoading(false);
       }
     },
-    []
+    [loginCustomerId]
   );
 
   const analyzeNegativeKeywords = useCallback(
@@ -126,6 +104,7 @@ export function useGoogleAds() {
             refreshToken,
             action: "analyze",
             dateRange,
+            loginCustomerId,
           }),
         });
 
@@ -145,7 +124,7 @@ export function useGoogleAds() {
         setLoading(false);
       }
     },
-    []
+    [loginCustomerId]
   );
 
   const addNegativeKeywords = useCallback(
@@ -170,6 +149,7 @@ export function useGoogleAds() {
             action: "add_negatives",
             adGroupId,
             keywords,
+            loginCustomerId,
           }),
         });
 
@@ -186,57 +166,14 @@ export function useGoogleAds() {
         setLoading(false);
       }
     },
-    []
-  );
-
-  const getReports = useCallback(
-    async (
-      customerId: string,
-      refreshToken: string,
-      reportType: "click_performance" | "search_terms" | "budget_data",
-      dateRange: string = "LAST_7_DAYS"
-    ): Promise<any> => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch("/api/google-ads/reports", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            customerId,
-            refreshToken,
-            reportType,
-            dateRange,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch reports");
-        }
-
-        const data = await response.json();
-        return data.data;
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch reports");
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
+    [loginCustomerId]
   );
 
   return {
     loading,
     error,
-    connectGoogleAds,
     analyzeFraud,
     analyzeNegativeKeywords,
     addNegativeKeywords,
-    getReports,
   };
 }

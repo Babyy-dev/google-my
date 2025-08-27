@@ -1,7 +1,6 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/google-ads-api-client.ts
 import { GoogleAdsApi, enums } from "google-ads-api";
-import { createClient } from "@/lib/supabase/client";
-
-const supabase = createClient();
+import { SupabaseClient } from "@supabase/supabase-js";
 
 interface FraudAlertInsert {
   user_id: string;
@@ -14,33 +13,60 @@ interface FraudAlertInsert {
   ad_group_id: string;
 }
 
+const BOT_UA_FRAGMENTS = [
+  "bot",
+  "spider",
+  "crawler",
+  "headless",
+  "slurp",
+  "googlebot",
+];
+
 export class GoogleAdsApiClient {
   private client: GoogleAdsApi;
   private customerId: string;
+  private loginCustomerId?: string;
   private refreshToken: string;
 
-  constructor(refreshToken: string, customerId: string) {
+  constructor(
+    refreshToken: string,
+    customerId: string,
+    loginCustomerId?: string
+  ) {
     this.client = new GoogleAdsApi({
       client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
       developer_token: process.env.GOOGLE_DEVELOPER_TOKEN!,
     });
     this.customerId = customerId;
+    this.loginCustomerId = loginCustomerId;
     this.refreshToken = refreshToken;
   }
 
   private getCustomer() {
     return this.client.Customer({
       customer_id: this.customerId,
-      login_customer_id: this.customerId,
+      login_customer_id: this.loginCustomerId || this.customerId,
       refresh_token: this.refreshToken,
     });
   }
 
-  // New, reliable validation method
+  static async listAccessibleCustomers(
+    refreshToken: string
+  ): Promise<string[]> {
+    const client = new GoogleAdsApi({
+      client_id: process.env.GOOGLE_CLIENT_ID!,
+      client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+      developer_token: process.env.GOOGLE_DEVELOPER_TOKEN!,
+    });
+    const accessibleCustomers = await client.listAccessibleCustomers(
+      refreshToken
+    );
+    return accessibleCustomers.resource_names;
+  }
+
   async validate(): Promise<void> {
     const customer = this.getCustomer();
-    // A simple, low-cost query to verify that the credentials and customerId are valid.
     await customer.report({
       entity: "customer",
       attributes: ["customer.id"],
@@ -49,18 +75,18 @@ export class GoogleAdsApiClient {
   }
 
   async analyzeAndStoreFraud(
+    supabase: SupabaseClient,
     userId: string,
     googleAdsAccountId: string
   ): Promise<FraudAlertInsert[]> {
     const customer = this.getCustomer();
-    const supabase = createClient();
 
     const sevenDaysAgo = new Date(
       Date.now() - 7 * 24 * 60 * 60 * 1000
     ).toISOString();
     const { data: clicks, error: clickError } = await supabase
       .from("ad_clicks")
-      .select("ip_address, gclid")
+      .select("ip_address, gclid, user_agent")
       .gte("created_at", sevenDaysAgo);
 
     if (clickError) {
@@ -69,28 +95,36 @@ export class GoogleAdsApiClient {
     }
 
     const ipCounts: { [key: string]: number } = {};
-    const fraudulentIps = new Set<string>();
+    const fraudulentGclidsWithReason: Map<string, string> = new Map();
 
     for (const click of clicks) {
+      if (click.user_agent) {
+        const isBot = BOT_UA_FRAGMENTS.some((fragment) =>
+          click.user_agent!.toLowerCase().includes(fragment)
+        );
+        if (isBot && click.gclid) {
+          fraudulentGclidsWithReason.set(click.gclid, "Known bot user agent");
+        }
+      }
+
       if (click.ip_address) {
         ipCounts[click.ip_address] = (ipCounts[click.ip_address] || 0) + 1;
-        if (ipCounts[click.ip_address] > 1) {
-          fraudulentIps.add(click.ip_address);
+        if (ipCounts[click.ip_address] > 2 && click.gclid) {
+          fraudulentGclidsWithReason.set(
+            click.gclid,
+            "Excessive clicks from same IP"
+          );
         }
       }
     }
 
-    if (fraudulentIps.size === 0) {
+    if (fraudulentGclidsWithReason.size === 0) {
       return [];
     }
 
-    const fraudulentGclids = clicks
-      .filter((c) => c.ip_address && fraudulentIps.has(c.ip_address) && c.gclid)
-      .map((c) => `'${c.gclid}'`);
-
-    if (fraudulentGclids.length === 0) {
-      return [];
-    }
+    const fraudulentGclids = Array.from(fraudulentGclidsWithReason.keys()).map(
+      (gclid) => `'${gclid}'`
+    );
 
     const report = await customer.report({
       entity: "click_view",
@@ -108,7 +142,9 @@ export class GoogleAdsApiClient {
         clicks.find((c) => c.gclid === row.click_view?.gclid)?.ip_address ||
         "Unknown",
       timestamp: new Date().toISOString(),
-      reason: "Excessive clicks from the same IP",
+      reason:
+        fraudulentGclidsWithReason.get(row.click_view?.gclid!) ||
+        "Suspicious Activity",
       cost: (row.metrics?.cost_micros || 0) / 1000000,
       campaign_id: (row.campaign?.id || "").toString(),
       ad_group_id: (row.ad_group?.id || "").toString(),
@@ -193,5 +229,33 @@ export class GoogleAdsApiClient {
     ]);
 
     return { success: true };
+  }
+
+  async blockIpsFromCampaign(campaignId: string, ips: string[]): Promise<void> {
+    if (ips.length === 0) {
+      return;
+    }
+
+    const customer = this.getCustomer();
+    const resources = ips.map((ip) => ({
+      entity: "campaign_criterion",
+      operation: "create",
+      resource: {
+        campaign: `customers/${this.customerId}/campaigns/${campaignId}`,
+        negative: true,
+        ip_block: {
+          ip_address: ip,
+        },
+      },
+    }));
+
+    try {
+      await customer.mutateResources(resources as any);
+      console.log(
+        `Successfully blocked ${ips.length} IPs from campaign ${campaignId}`
+      );
+    } catch (error) {
+      console.error(`Failed to block IPs for campaign ${campaignId}:`, error);
+    }
   }
 }

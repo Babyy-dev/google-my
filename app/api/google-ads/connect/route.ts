@@ -1,6 +1,6 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/api/google-ads/connect/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { GoogleAdsApiClient } from "@/lib/google-ads-api-client";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -14,8 +14,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { customerId, accessToken, refreshToken, accountName, currencyCode } =
-      body;
+    const {
+      customerId,
+      loginCustomerId,
+      accessToken,
+      refreshToken,
+      accountName,
+      currencyCode,
+    } = body;
 
     if (!customerId || !accessToken || !refreshToken) {
       return NextResponse.json(
@@ -23,19 +29,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // --- REAL-TIME VALIDATION STEP ---
-    try {
-      const client = new GoogleAdsApiClient(refreshToken, customerId);
-      await client.validate();
-    } catch (validationError) {
-      console.error("Google Ads validation failed:", validationError);
-      return NextResponse.json(
-        { error: "Invalid Google Ads Customer ID or credentials." },
-        { status: 400 }
-      );
-    }
-    // --- END VALIDATION STEP ---
 
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 1);
@@ -46,6 +39,7 @@ export async function POST(request: NextRequest) {
         {
           user_id: user.id,
           customer_id: customerId,
+          login_customer_id: loginCustomerId, // Save the manager ID
           account_name: accountName || `Google Ads Account ${customerId}`,
           currency_code: currencyCode || "USD",
           access_token: accessToken,

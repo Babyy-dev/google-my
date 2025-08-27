@@ -1,3 +1,4 @@
+// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/database.types.ts
 export type Json =
   | string
   | number
@@ -17,6 +18,7 @@ export interface Database {
           id: string;
           user_id: string;
           customer_id: string;
+          login_customer_id: string | null; // Add this line
           account_name: string;
           currency_code: string;
           access_token: string;
@@ -30,6 +32,7 @@ export interface Database {
           id?: string;
           user_id: string;
           customer_id: string;
+          login_customer_id?: string | null; // Add this line
           account_name: string;
           currency_code: string;
           access_token: string;
@@ -43,6 +46,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           customer_id?: string;
+          login_customer_id?: string | null; // Add this line
           account_name?: string;
           currency_code?: string;
           access_token?: string;
