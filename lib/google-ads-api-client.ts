@@ -261,4 +261,46 @@ export class GoogleAdsApiClient {
       console.error(`Failed to block IPs for campaign ${campaignId}:`, error);
     }
   }
+
+  async getReports(
+    reportType: "click_performance" | "search_terms" | "budget_data",
+    dateRange: string = "LAST_7_DAYS"
+  ): Promise<any> {
+    const customer = this.getCustomer();
+    let queryOptions: any = { date_constant: dateRange };
+
+    switch (reportType) {
+      case "click_performance":
+        queryOptions = {
+          ...queryOptions,
+          entity: "click_view",
+          attributes: ["campaign.name", "ad_group.name", "click_view.gclid"],
+          metrics: ["metrics.clicks", "metrics.cost_micros"],
+        };
+        break;
+      case "search_terms":
+        queryOptions = {
+          ...queryOptions,
+          entity: "search_term_view",
+          attributes: ["search_term_view.search_term", "campaign.name"],
+          metrics: [
+            "metrics.clicks",
+            "metrics.cost_micros",
+            "metrics.conversions",
+          ],
+        };
+        break;
+      case "budget_data":
+        queryOptions = {
+          ...queryOptions,
+          entity: "campaign_budget",
+          attributes: ["campaign.name", "campaign_budget.amount_micros"],
+        };
+        break;
+      default:
+        throw new Error("Invalid report type specified.");
+    }
+
+    return await customer.report(queryOptions);
+  }
 }
