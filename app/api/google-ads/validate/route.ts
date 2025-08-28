@@ -27,24 +27,42 @@ export async function POST(request: NextRequest) {
     const accessibleCustomers =
       await GoogleAdsApiClient.listAccessibleCustomers(refreshToken);
 
-    // Check if the user entered a Manager ID they have direct access to.
-    const isManagerAccount = accessibleCustomers.some(
-      (name) => name === `customers/${cleanedCustomerId}`
+    const isDirectlyAccessible = accessibleCustomers.some(
+      (name: string) => name === `customers/${cleanedCustomerId}`
     );
 
-    if (isManagerAccount) {
-      // Forbid connecting with a Manager ID, as we cannot get metrics from it.
-      return NextResponse.json(
-        {
-          error:
-            "This is a Manager Account ID. Please provide a specific Client Account ID to analyze.",
-        },
-        { status: 400 }
-      );
+    // This is the crucial check. If the ID provided is a Manager Account, we reject it.
+    if (isDirectlyAccessible) {
+      try {
+        // We attempt to get metrics. This will FAIL for a manager account.
+        const testClient = new GoogleAdsApiClient(
+          refreshToken,
+          cleanedCustomerId
+        );
+        await testClient.validate(); // This calls the report endpoint
+      } catch (error: any) {
+        if (
+          error.message.includes(
+            "Metrics cannot be requested for a manager account"
+          )
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "This is a Manager Account ID. Please provide a specific Client Account ID to analyze.",
+            },
+            { status: 400 }
+          );
+        }
+      }
+      // If it's directly accessible and NOT a manager account, it's valid on its own.
+      return NextResponse.json({
+        success: true,
+        message: "Customer ID is valid.",
+      });
     }
 
-    // If the ID is not a directly accessible manager account, it must be a client account.
-    // Now, we find which of the user's accessible manager accounts can access this client ID.
+    // If not directly accessible, it must be a child account. We find its manager.
     const managerAccounts = accessibleCustomers.filter((name: string) =>
       name.startsWith("customers/")
     );
@@ -52,25 +70,23 @@ export async function POST(request: NextRequest) {
     for (const managerResourceName of managerAccounts) {
       const managerId = managerResourceName.split("/")[1];
       try {
-        // Attempt to validate the client ID using a manager ID for login.
         const client = new GoogleAdsApiClient(
           refreshToken,
           cleanedCustomerId,
           managerId
         );
         await client.validate();
-        // If it succeeds, we've found the correct manager for this client.
+        // If validation succeeds, we found the right manager for this client.
         return NextResponse.json({
           success: true,
           message: "Customer ID is valid.",
           loginCustomerId: managerId,
         });
       } catch (e) {
-        // This manager can't access the client, so we'll try the next one.
+        // This manager can't access the client, so we continue to the next one.
       }
     }
 
-    // If we loop through all managers and none can access the ID, it's invalid or the user lacks permission.
     return NextResponse.json(
       {
         error: "Invalid Client ID or you do not have permission to access it.",

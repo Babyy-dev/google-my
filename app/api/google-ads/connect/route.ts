@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         {
           user_id: user.id,
           customer_id: customerId,
-          login_customer_id: loginCustomerId, // Save the manager ID
+          login_customer_id: loginCustomerId,
           account_name: accountName || `Google Ads Account ${customerId}`,
           currency_code: currencyCode || "USD",
           access_token: accessToken,

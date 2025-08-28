@@ -51,7 +51,7 @@ interface Alert {
 
 export default function ClickFraudPage() {
   const { session } = useAuth();
-  const { analyzeFraud, loading, error: hookError } = useGoogleAds();
+  const { analyzeFraud, loading } = useGoogleAds();
   const {
     isConnected,
     customerId,
@@ -65,7 +65,10 @@ export default function ClickFraudPage() {
 
   const fetchFraudData = useCallback(
     async (id: string) => {
-      if (!session?.provider_refresh_token) return;
+      if (!session?.provider_refresh_token) {
+        setConnectError("Session expired. Please sign in again.");
+        return;
+      }
       try {
         const data = await analyzeFraud(
           id.replace(/-/g, ""),
@@ -74,6 +77,7 @@ export default function ClickFraudPage() {
         setFraudData(data);
       } catch (e: any) {
         console.error("Error fetching fraud data:", e);
+        setConnectError(e.message || "Failed to fetch fraud data.");
       }
     },
     [session, analyzeFraud]
@@ -86,30 +90,41 @@ export default function ClickFraudPage() {
   }, [isConnected, customerId, fetchFraudData]);
 
   const handleConnect = async () => {
-    if (!inputCustomerId || !session?.provider_refresh_token) {
-      console.error("Customer ID or refresh token are missing.");
-      return;
-    }
     setIsConnecting(true);
     setConnectError(null);
+
+    if (!inputCustomerId) {
+      setConnectError("Please enter a Google Ads Customer ID.");
+      setIsConnecting(false);
+      return;
+    }
+
+    if (!session?.provider_refresh_token) {
+      setConnectError(
+        "Authentication error: Refresh Token is missing. Please sign out and sign back in. Ensure your server environment variables (GOOGLE_CLIENT_ID, etc.) are set correctly in your .env.local file."
+      );
+      setIsConnecting(false);
+      return;
+    }
+
     try {
       const validationResponse = await fetch("/api/google-ads/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerId: inputCustomerId.replace(/-/g, ""),
+          customerId: inputCustomerId,
           refreshToken: session.provider_refresh_token,
         }),
       });
 
       const validationData = await validationResponse.json();
       if (!validationResponse.ok) {
-        throw new Error(validationData.error || "Invalid Customer ID.");
+        throw new Error(validationData.error || "Validation failed.");
       }
 
       const { loginCustomerId } = validationData;
 
-      const connectResponse = await fetch("/api/google-ads/connect", {
+      await fetch("/api/google-ads/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -122,13 +137,6 @@ export default function ClickFraudPage() {
         }),
       });
 
-      if (!connectResponse.ok) {
-        const errorData = await connectResponse.json();
-        throw new Error(
-          errorData.error || "Failed to connect Google Ads account."
-        );
-      }
-
       connectGoogleAds(inputCustomerId, loginCustomerId);
     } catch (e: any) {
       console.error("Connection failed", e);
@@ -137,14 +145,6 @@ export default function ClickFraudPage() {
       setIsConnecting(false);
     }
   };
-
-  if (contextLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   if (!isConnected) {
     return (
@@ -177,7 +177,7 @@ export default function ClickFraudPage() {
             </div>
             <Button
               onClick={handleConnect}
-              disabled={!inputCustomerId || loading || isConnecting}
+              disabled={loading || isConnecting}
               className="w-full bg-primary hover:bg-primary/90"
             >
               {isConnecting ? "🔗 Validating..." : "🚀 Connect & Analyze"}
