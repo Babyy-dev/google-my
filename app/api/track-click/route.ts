@@ -1,3 +1,4 @@
+// app/api/track-click/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -7,14 +8,19 @@ export async function GET(request: NextRequest) {
 
   const gclid = searchParams.get("gclid");
   const lpurl = searchParams.get("lpurl");
-  const ip_address = request.headers.get("x-forwarded-for");
+
+  // FIX: Get the IP address reliably from headers.
+  const ip_address =
+    request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip");
+
   const user_agent = request.headers.get("user-agent");
 
   if (!lpurl) {
-    return new Response("Landing page URL is missing.", { status: 400 });
+    return new Response("Landing page URL (lpurl) is missing.", {
+      status: 400,
+    });
   }
 
-  // Log the click data to Supabase (don't wait for it to complete)
   supabase
     .from("ad_clicks")
     .insert({
@@ -29,6 +35,5 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  // Immediately redirect the user to the final landing page
   return NextResponse.redirect(lpurl);
 }

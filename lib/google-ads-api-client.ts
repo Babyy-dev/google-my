@@ -1,4 +1,4 @@
-// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/google-ads-api-client.ts
+// lib/google-ads-api-client.ts
 import { GoogleAdsApi, enums } from "google-ads-api";
 import { SupabaseClient } from "@supabase/supabase-js";
 
@@ -81,13 +81,27 @@ export class GoogleAdsApiClient {
   ): Promise<FraudAlertInsert[]> {
     const customer = this.getCustomer();
 
-    const sevenDaysAgo = new Date(
-      Date.now() - 7 * 24 * 60 * 60 * 1000
+    const { data: profile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("click_fraud_threshold")
+      .eq("id", userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching user profile for threshold:", profileError);
+      return [];
+    }
+
+    const clickThreshold = profile?.click_fraud_threshold || 3;
+
+    const twentyFourHoursAgo = new Date(
+      Date.now() - 24 * 60 * 60 * 1000
     ).toISOString();
+
     const { data: clicks, error: clickError } = await supabase
       .from("ad_clicks")
       .select("ip_address, gclid, user_agent")
-      .gte("created_at", sevenDaysAgo);
+      .gte("created_at", twentyFourHoursAgo);
 
     if (clickError) {
       console.error("Error fetching clicks from DB:", clickError);
@@ -109,10 +123,10 @@ export class GoogleAdsApiClient {
 
       if (click.ip_address) {
         ipCounts[click.ip_address] = (ipCounts[click.ip_address] || 0) + 1;
-        if (ipCounts[click.ip_address] > 2 && click.gclid) {
+        if (ipCounts[click.ip_address] > clickThreshold && click.gclid) {
           fraudulentGclidsWithReason.set(
             click.gclid,
-            "Excessive clicks from same IP"
+            `Exceeded click threshold of ${clickThreshold}`
           );
         }
       }

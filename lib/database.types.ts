@@ -1,4 +1,7 @@
-// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/database.types.ts
+// lib/database.types.ts
+// ANALYSIS: Added `click_fraud_threshold` and `stripe_customer_id` to user_profiles.
+// Added the new `subscriptions` table to track Stripe data.
+
 export type Json =
   | string
   | number
@@ -7,7 +10,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-// Add this export type at the top level
 export type UserProfile = Database["public"]["Tables"]["user_profiles"]["Row"];
 
 export interface Database {
@@ -18,7 +20,7 @@ export interface Database {
           id: string;
           user_id: string;
           customer_id: string;
-          login_customer_id: string | null; // Add this line
+          login_customer_id: string | null;
           account_name: string;
           currency_code: string;
           access_token: string;
@@ -32,7 +34,7 @@ export interface Database {
           id?: string;
           user_id: string;
           customer_id: string;
-          login_customer_id?: string | null; // Add this line
+          login_customer_id?: string | null;
           account_name: string;
           currency_code: string;
           access_token: string;
@@ -46,7 +48,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           customer_id?: string;
-          login_customer_id?: string | null; // Add this line
+          login_customer_id?: string | null;
           account_name?: string;
           currency_code?: string;
           access_token?: string;
@@ -93,6 +95,8 @@ export interface Database {
           avatar_url: string | null;
           created_at: string;
           updated_at: string;
+          click_fraud_threshold: number | null; // User-configurable click limit
+          stripe_customer_id: string | null; // Stripe customer ID
         };
         Insert: {
           id: string;
@@ -103,6 +107,8 @@ export interface Database {
           avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
+          click_fraud_threshold?: number | null;
+          stripe_customer_id?: string | null;
         };
         Update: {
           id?: string;
@@ -113,6 +119,72 @@ export interface Database {
           avatar_url?: string | null;
           created_at?: string;
           updated_at?: string;
+          click_fraud_threshold?: number | null;
+          stripe_customer_id?: string | null;
+        };
+      };
+      subscriptions: {
+        Row: {
+          id: string; // Maps to user_id
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          stripe_price_id: string | null;
+          stripe_current_period_end: string | null;
+          status: "active" | "trialing" | "canceled" | "unpaid" | null;
+        };
+        Insert: {
+          id: string;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          stripe_price_id?: string | null;
+          stripe_current_period_end?: string | null;
+          status?: "active" | "trialing" | "canceled" | "unpaid" | null;
+        };
+        Update: {
+          id?: string;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          stripe_price_id?: string | null;
+          stripe_current_period_end?: string | null;
+          status?: "active" | "trialing" | "canceled" | "unpaid" | null;
+        };
+      };
+      fraud_alerts: {
+        Row: {
+          id: number;
+          user_id: string;
+          google_ads_account_id: string;
+          ip_address: string;
+          timestamp: string;
+          reason: string;
+          cost: number;
+          campaign_id: string;
+          ad_group_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          user_id: string;
+          google_ads_account_id: string;
+          ip_address: string;
+          timestamp: string;
+          reason: string;
+          cost: number;
+          campaign_id: string;
+          ad_group_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          user_id?: string;
+          google_ads_account_id?: string;
+          ip_address?: string;
+          timestamp?: string;
+          reason?: string;
+          cost?: number;
+          campaign_id?: string;
+          ad_group_id?: string;
+          created_at?: string;
         };
       };
     };
@@ -127,44 +199,6 @@ export interface Database {
     };
     CompositeTypes: {
       [_ in never]: never;
-    };
-    fraud_alerts: {
-      Row: {
-        id: number;
-        user_id: string;
-        google_ads_account_id: string;
-        ip_address: string;
-        timestamp: string;
-        reason: string;
-        cost: number;
-        campaign_id: string;
-        ad_group_id: string;
-        created_at: string;
-      };
-      Insert: {
-        id?: number;
-        user_id: string;
-        google_ads_account_id: string;
-        ip_address: string;
-        timestamp: string;
-        reason: string;
-        cost: number;
-        campaign_id: string;
-        ad_group_id: string;
-        created_at?: string;
-      };
-      Update: {
-        id?: number;
-        user_id?: string;
-        google_ads_account_id?: string;
-        ip_address?: string;
-        timestamp?: string;
-        reason?: string;
-        cost?: number;
-        campaign_id?: string;
-        ad_group_id?: string;
-        created_at?: string;
-      };
     };
   };
 }
