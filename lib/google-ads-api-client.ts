@@ -39,14 +39,14 @@ export class GoogleAdsApiClient {
       developer_token: process.env.GOOGLE_DEVELOPER_TOKEN!,
     });
     this.customerId = customerId;
-    this.loginCustomerId = loginCustomerId;
+    this.loginCustomerId = loginCustomerId || customerId;
     this.refreshToken = refreshToken;
   }
 
   private getCustomer() {
     return this.client.Customer({
       customer_id: this.customerId,
-      login_customer_id: this.loginCustomerId || this.customerId,
+      login_customer_id: this.loginCustomerId,
       refresh_token: this.refreshToken,
     });
   }
@@ -77,22 +77,10 @@ export class GoogleAdsApiClient {
   async analyzeAndStoreFraud(
     supabase: SupabaseClient,
     userId: string,
-    googleAdsAccountId: string
-  ): Promise<FraudAlertInsert[]> {
+    googleAdsAccountId: string,
+    clickThreshold: number
+  ): Promise<any[]> {
     const customer = this.getCustomer();
-
-    const { data: profile, error: profileError } = await supabase
-      .from("user_profiles")
-      .select("click_fraud_threshold")
-      .eq("id", userId)
-      .single();
-
-    if (profileError) {
-      console.error("Error fetching user profile for threshold:", profileError);
-      return [];
-    }
-
-    const clickThreshold = profile?.click_fraud_threshold || 3;
 
     const twentyFourHoursAgo = new Date(
       Date.now() - 24 * 60 * 60 * 1000
@@ -100,7 +88,7 @@ export class GoogleAdsApiClient {
 
     const { data: clicks, error: clickError } = await supabase
       .from("ad_clicks")
-      .select("ip_address, gclid, user_agent")
+      .select("ip_address, gclid, user_agent, created_at")
       .gte("created_at", twentyFourHoursAgo);
 
     if (clickError) {
@@ -136,39 +124,37 @@ export class GoogleAdsApiClient {
       return [];
     }
 
-    const fraudulentGclids = Array.from(fraudulentGclidsWithReason.keys()).map(
-      (gclid) => `'${gclid}'`
-    );
+    const fraudulentGclids = Array.from(fraudulentGclidsWithReason.keys());
 
     const report = await customer.report({
       entity: "click_view",
       attributes: ["campaign.id", "ad_group.id", "click_view.gclid"],
-      metrics: ["metrics.cost_micros"],
+      metrics: [], // Removed incompatible 'metrics.cost_micros'
       constraints: {
-        "click_view.gclid": { IN: fraudulentGclids },
-      } as any,
+        "click_view.gclid": fraudulentGclids,
+      },
     });
 
-    const fraudulentClicks: FraudAlertInsert[] = report.map((row) => ({
+    const fraudulentClicks = report.map((row: any) => ({
       user_id: userId,
       google_ads_account_id: googleAdsAccountId,
       ip_address:
         clicks.find((c) => c.gclid === row.click_view?.gclid)?.ip_address ||
         "Unknown",
-      timestamp: new Date().toISOString(),
       reason:
         (row.click_view?.gclid &&
           fraudulentGclidsWithReason.get(row.click_view.gclid)) ||
         "Suspicious Activity",
-      cost: (row.metrics?.cost_micros || 0) / 1000000,
+      cost: 0, // Cost is set to 0 as it cannot be retrieved from this report
       campaign_id: (row.campaign?.id || "").toString(),
       ad_group_id: (row.ad_group?.id || "").toString(),
+      created_at: new Date().toISOString(),
     }));
 
     if (fraudulentClicks.length > 0) {
       const { error } = await supabase
         .from("fraud_alerts")
-        .insert(fraudulentClicks);
+        .insert(fraudulentClicks as any);
       if (error) console.error("Error saving fraud alerts to Supabase:", error);
     }
 
@@ -193,11 +179,11 @@ export class GoogleAdsApiClient {
 
     const topBadTerms = report
       .filter(
-        (row) =>
+        (row: any) =>
           (row.metrics?.conversions || 0) === 0 &&
           (row.metrics?.clicks || 0) > 10
       )
-      .map((row) => ({
+      .map((row: any) => ({
         searchTerm: row.search_term_view?.search_term,
         cost: ((row.metrics?.cost_micros || 0) / 1000000).toFixed(2),
         clicks: row.metrics?.clicks,
@@ -288,7 +274,12 @@ export class GoogleAdsApiClient {
         queryOptions = {
           ...queryOptions,
           entity: "click_view",
-          attributes: ["campaign.name", "ad_group.name", "click_view.gclid"],
+          attributes: [
+            "campaign.name",
+            "ad_group.name",
+            "click_view.gclid",
+            "segments.date",
+          ],
           metrics: ["metrics.clicks", "metrics.cost_micros"],
         };
         break;

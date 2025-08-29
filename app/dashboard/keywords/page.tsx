@@ -1,4 +1,4 @@
-// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/dashboard/keywords/page.tsx
+// app/dashboard/keywords/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -20,8 +20,8 @@ import {
 } from "@/components/ui/table";
 import { useGoogleAds, NegativeKeywordAnalysis } from "@/hooks/useGoogleAds";
 import { useAuth } from "@/lib/auth";
-import { Input } from "@/components/ui/input";
 import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
+import { ConnectGoogleAds } from "@/components/auth/connect-google-ads";
 
 const initialAnalysis: NegativeKeywordAnalysis = {
   totalSearchTerms: 0,
@@ -36,11 +36,13 @@ export default function KeywordsPage() {
   const { session } = useAuth();
   const { analyzeNegativeKeywords, addNegativeKeywords, loading, error } =
     useGoogleAds();
-  const { isConnected, customerId, connectGoogleAds } = useGoogleAdsContext();
+  const {
+    isConnected,
+    customerId,
+    loading: contextLoading,
+  } = useGoogleAdsContext();
   const [analysis, setAnalysis] =
     useState<NegativeKeywordAnalysis>(initialAnalysis);
-  const [inputCustomerId, setInputCustomerId] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
 
   const handleAnalyze = useCallback(
     async (id: string) => {
@@ -64,57 +66,6 @@ export default function KeywordsPage() {
     }
   }, [isConnected, customerId, handleAnalyze]);
 
-  const handleConnect = async () => {
-    if (
-      !inputCustomerId ||
-      !session?.provider_token ||
-      !session?.provider_refresh_token
-    ) {
-      console.error("Customer ID or auth tokens are missing.");
-      return;
-    }
-    setIsConnecting(true);
-    try {
-      const validationResponse = await fetch("/api/google-ads/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: inputCustomerId.replace(/-/g, ""),
-          refreshToken: session.provider_refresh_token,
-        }),
-      });
-
-      if (!validationResponse.ok) {
-        const errorData = await validationResponse.json();
-        throw new Error(errorData.error || "Invalid Customer ID.");
-      }
-
-      const response = await fetch("/api/google-ads/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: inputCustomerId.replace(/-/g, ""),
-          accessToken: session.provider_token,
-          refreshToken: session.provider_refresh_token,
-          accountName: `Google Ads ${inputCustomerId}`,
-          currencyCode: "USD",
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.details || "Failed to save Google Ads account connection."
-        );
-      }
-      connectGoogleAds(inputCustomerId);
-    } catch (e) {
-      console.error("Connection failed", e);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
   const handleAddKeywords = async (adGroupId: string, keywords: string[]) => {
     if (!session?.provider_refresh_token || !customerId) return;
     try {
@@ -124,52 +75,22 @@ export default function KeywordsPage() {
         adGroupId,
         keywords
       );
-      handleAnalyze(customerId);
+      handleAnalyze(customerId); // Refresh analysis after adding keywords
     } catch (e) {
       console.error(e);
     }
   };
 
-  if (!isConnected) {
+  if (contextLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
-        <Card className="w-full max-w-lg">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">🛡️ Connect to Google Ads</CardTitle>
-            <CardDescription>
-              Enter your Google Ads Customer ID to analyze keywords.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <div className="text-left">
-              <label
-                htmlFor="customerId"
-                className="text-sm font-medium text-gray-700"
-              >
-                Google Ads Customer ID (e.g., 123-456-7890)
-              </label>
-              <Input
-                id="customerId"
-                placeholder="Enter your 10-digit Customer ID"
-                value={inputCustomerId}
-                onChange={(e) => setInputCustomerId(e.target.value)}
-                className="mt-1 text-center text-lg tracking-wider"
-              />
-              {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-            </div>
-            <Button
-              onClick={handleConnect}
-              disabled={!inputCustomerId || loading || isConnecting}
-              className="w-full bg-primary hover:bg-primary/90"
-            >
-              {loading || isConnecting
-                ? "🔍 Analyzing Keywords..."
-                : "🚀 Analyze Keywords"}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  if (!isConnected) {
+    return <ConnectGoogleAds />;
   }
 
   return (
@@ -183,13 +104,37 @@ export default function KeywordsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-4 gap-4">
-            <div>Total Search Terms: {analysis.totalSearchTerms}</div>
-            <div>Suggested Negatives: {analysis.suggestedNegatives}</div>
-            <div>
-              Potential Monthly Savings: ${analysis.potentialMonthlySavings}
+          <div className="grid grid-cols-4 gap-4 text-center">
+            <div className="p-4 rounded-lg border">
+              <div className="text-xs text-foreground/60">
+                Total Search Terms
+              </div>
+              <div className="text-2xl font-bold">
+                {analysis.totalSearchTerms.toLocaleString()}
+              </div>
             </div>
-            <div>Wasted Clicks: {analysis.wastedClicks}</div>
+            <div className="p-4 rounded-lg border">
+              <div className="text-xs text-foreground/60">
+                Suggested Negatives
+              </div>
+              <div className="text-2xl font-bold">
+                {analysis.suggestedNegatives.toLocaleString()}
+              </div>
+            </div>
+            <div className="p-4 rounded-lg border">
+              <div className="text-xs text-foreground/60">
+                Potential Monthly Savings
+              </div>
+              <div className="text-2xl font-bold">
+                ${analysis.potentialMonthlySavings.toFixed(2)}
+              </div>
+            </div>
+            <div className="p-4 rounded-lg border">
+              <div className="text-xs text-foreground/60">Wasted Clicks</div>
+              <div className="text-2xl font-bold">
+                {analysis.wastedClicks.toLocaleString()}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -197,6 +142,7 @@ export default function KeywordsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Top Wasted Spend Search Terms</CardTitle>
+          {error && <p className="text-sm text-red-500">{error}</p>}
         </CardHeader>
         <CardContent>
           <Table>
@@ -212,7 +158,7 @@ export default function KeywordsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {analysis.topBadTerms.map((term, index) => (
+              {analysis.topBadTerms.map((term: any, index: number) => (
                 <TableRow key={index}>
                   <TableCell>{term.searchTerm}</TableCell>
                   <TableCell>${term.cost}</TableCell>
@@ -222,9 +168,11 @@ export default function KeywordsPage() {
                   <TableCell>{term.adGroup}</TableCell>
                   <TableCell>
                     <Button
+                      size="sm"
                       onClick={() =>
-                        handleAddKeywords(term.adGroup, [term.searchTerm])
+                        handleAddKeywords(term.adGroupId, [term.searchTerm])
                       }
+                      disabled={loading}
                     >
                       Add as Negative
                     </Button>

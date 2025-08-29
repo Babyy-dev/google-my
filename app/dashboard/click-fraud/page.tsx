@@ -1,3 +1,4 @@
+// app/dashboard/click-fraud/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -8,8 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -21,6 +20,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useGoogleAds, FraudAnalysis } from "@/hooks/useGoogleAds";
 import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
+import { ConnectGoogleAds } from "@/components/auth/connect-google-ads";
 
 const initialFraudData: FraudAnalysis = {
   riskLevel: "low",
@@ -50,22 +50,19 @@ interface Alert {
 
 export default function ClickFraudPage() {
   const { session } = useAuth();
-  const { analyzeFraud, loading } = useGoogleAds();
+  const { analyzeFraud, loading: hookLoading } = useGoogleAds();
   const {
     isConnected,
     customerId,
-    connectGoogleAds,
     loading: contextLoading,
   } = useGoogleAdsContext();
   const [fraudData, setFraudData] = useState<FraudAnalysis>(initialFraudData);
-  const [inputCustomerId, setInputCustomerId] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [connectError, setConnectError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchFraudData = useCallback(
     async (id: string) => {
       if (!session?.provider_refresh_token) {
-        setConnectError("Session expired. Please sign in again.");
+        setError("Session expired. Please sign in again.");
         return;
       }
       try {
@@ -76,7 +73,7 @@ export default function ClickFraudPage() {
         setFraudData(data);
       } catch (e: any) {
         console.error("Error fetching fraud data:", e);
-        setConnectError(e.message || "Failed to fetch fraud data.");
+        setError(e.message || "Failed to fetch fraud data.");
       }
     },
     [session, analyzeFraud]
@@ -88,103 +85,16 @@ export default function ClickFraudPage() {
     }
   }, [isConnected, customerId, fetchFraudData]);
 
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    setConnectError(null);
-
-    if (!inputCustomerId) {
-      setConnectError("Please enter a Google Ads Customer ID.");
-      setIsConnecting(false);
-      return;
-    }
-
-    if (!session?.provider_refresh_token) {
-      setConnectError(
-        "Authentication error: Refresh Token is missing. Please sign out and sign back in. Ensure your server environment variables (GOOGLE_CLIENT_ID, etc.) are set correctly in your .env.local file."
-      );
-      setIsConnecting(false);
-      return;
-    }
-
-    try {
-      const validationResponse = await fetch("/api/google-ads/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: inputCustomerId,
-          refreshToken: session.provider_refresh_token,
-        }),
-      });
-
-      const validationData = await validationResponse.json();
-      if (!validationResponse.ok) {
-        throw new Error(validationData.error || "Validation failed.");
-      }
-
-      const { loginCustomerId } = validationData;
-
-      await fetch("/api/google-ads/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: inputCustomerId.replace(/-/g, ""),
-          loginCustomerId: loginCustomerId,
-          accessToken: session.provider_token,
-          refreshToken: session.provider_refresh_token,
-          accountName: `Google Ads ${inputCustomerId}`,
-          currencyCode: "USD",
-        }),
-      });
-
-      connectGoogleAds(inputCustomerId, loginCustomerId);
-    } catch (e: any) {
-      console.error("Connection failed", e);
-      setConnectError(e.message);
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  if (!isConnected) {
+  if (contextLoading || hookLoading) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
-        <Card className="w-full max-w-lg">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">🛡️ Connect to Google Ads</CardTitle>
-            <CardDescription>
-              Enter your Google Ads **Client Customer ID** to begin analysis.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <div className="text-left">
-              <label
-                htmlFor="customerId"
-                className="text-sm font-medium text-gray-700"
-              >
-                Google Ads Client ID (e.g., 123-456-7890)
-              </label>
-              <Input
-                id="customerId"
-                placeholder="Enter your 10-digit Client ID"
-                value={inputCustomerId}
-                onChange={(e) => setInputCustomerId(e.target.value)}
-                className="mt-1 text-center text-lg tracking-wider"
-              />
-              {connectError && (
-                <p className="text-red-500 text-sm mt-2">{connectError}</p>
-              )}
-            </div>
-            <Button
-              onClick={handleConnect}
-              disabled={loading || isConnecting}
-              className="w-full bg-primary hover:bg-primary/90"
-            >
-              {isConnecting ? "🔗 Validating..." : "🚀 Connect & Analyze"}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  if (!isConnected) {
+    return <ConnectGoogleAds />;
   }
 
   return (

@@ -1,3 +1,4 @@
+// app/dashboard/layout.tsx
 "use client";
 
 import Link from "next/link";
@@ -13,21 +14,18 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const links = [
     { href: "/dashboard", label: "Overview" },
+    { href: "/dashboard/websites", label: "Your Websites" }, // <-- ADD THIS LINE
     { href: "/dashboard/click-fraud", label: "Click Fraud" },
     { href: "/dashboard/keywords", label: "Keywords" },
     { href: "/dashboard/billing", label: "Billing" },
     { href: "/dashboard/settings", label: "Settings" },
+    { href: "/dashboard/how-it-works", label: "How It Works" },
   ];
 
   return (
     <ProtectedRoute>
-      {/* The GoogleAdsProvider is no longer needed here */}
       <div className="relative min-h-[100dvh] w-full">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_500px_at_15%_-10%,oklch(0.96_0.09_260/.7),transparent),radial-gradient(1000px_480px_at_85%_0%,oklch(0.96_0.09_145/.7),transparent)]"
-        />
-
+        {/* ... (rest of the file is the same) */}
         <aside className="fixed inset-y-0 top-16 hidden w-64 border-r border-[color-mix(in_oklab,currentColor_12%,transparent)] bg-background/85 backdrop-blur md:flex md:flex-col">
           <div className="px-4 pb-3 pt-4 text-xs font-medium uppercase tracking-wide text-foreground/60">
             Dashboard

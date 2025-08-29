@@ -1,6 +1,7 @@
+// app/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth";
+import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
+import { ConnectGoogleAds } from "@/components/auth/connect-google-ads";
 
-// Define a type for the alert prop
 interface RecentAlert {
   ip: string;
   location: string;
@@ -56,48 +58,69 @@ const initialDashboardData: DashboardData = {
 };
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
+  const {
+    isConnected,
+    customerId,
+    loginCustomerId,
+    loading: contextLoading,
+  } = useGoogleAdsContext();
   const searchParams = useSearchParams();
-  const [isConnected, setIsConnected] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [dashboardData, setDashboardData] =
     useState<DashboardData>(initialDashboardData);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const response = await fetch("/api/dashboard/stats");
-        if (response.ok) {
-          const data = await response.json();
-          setDashboardData(data);
-        } else {
-          console.error("Failed to fetch dashboard data:", response.statusText);
-        }
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      }
-    };
-
-    const initDashboard = async () => {
-      if (searchParams?.get("connected") === "true") {
-        setIsConnected(true);
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 5000);
-      }
-
-      const googleAdsToken = localStorage.getItem("google_ads_token");
-      if (googleAdsToken) {
-        setIsConnected(true);
-        await fetchDashboardData();
-      }
+  const fetchDashboardData = useCallback(async () => {
+    if (!isConnected || !customerId || !session?.provider_refresh_token) {
       setLoading(false);
-    };
+      return;
+    }
 
-    initDashboard();
+    setLoading(true);
+    try {
+      const response = await fetch("/api/dashboard/stats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId,
+          refreshToken: session.provider_refresh_token,
+          loginCustomerId,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDashboardData(data);
+      } else {
+        console.error("Failed to fetch dashboard data:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [isConnected, customerId, loginCustomerId, session]);
+
+  useEffect(() => {
+    if (!contextLoading) {
+      if (isConnected) {
+        fetchDashboardData();
+      } else {
+        setLoading(false); // If not connected, stop loading
+      }
+    }
+  }, [isConnected, contextLoading, fetchDashboardData]);
+
+  useEffect(() => {
+    if (searchParams?.get("connected") === "true") {
+      setShowSuccess(true);
+      const timer = setTimeout(() => setShowSuccess(false), 5000);
+      return () => clearTimeout(timer);
+    }
   }, [searchParams]);
 
-  if (loading) {
+  if (loading || contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -105,11 +128,13 @@ export default function DashboardPage() {
     );
   }
 
+  // If the user is logged in but has not connected their Google Ads account, show the connection component.
   if (!isConnected) {
     return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        {/* ... existing connect to Google Ads component */}
-      </div>
+      <ConnectGoogleAds
+        title="Welcome to your Dashboard"
+        description="Connect your Google Ads account to see your live performance and protection stats."
+      />
     );
   }
 
@@ -119,26 +144,32 @@ export default function DashboardPage() {
         <div className="md:col-span-3 mb-4">
           <div className="p-4 bg-green-100 border border-green-200 rounded-lg">
             <p className="text-sm text-green-700 mt-1">
-              Connected as: <strong>{user?.email}</strong>
+              Google Ads account connected successfully!
             </p>
           </div>
         </div>
       )}
 
       <div className="md:col-span-3 grid gap-4 md:grid-cols-4">
-        <Kpi title="Saved Budget" value={dashboardData.stats.savedBudget} />
-        <Kpi title="Blocked IPs" value={dashboardData.stats.blockedIPs} />
+        <Kpi
+          title="Saved Budget (7d)"
+          value={dashboardData.stats.savedBudget}
+        />
+        <Kpi title="Blocked IPs (7d)" value={dashboardData.stats.blockedIPs} />
         <Kpi
           title="Keywords Blocked"
           value={dashboardData.stats.keywordsBlocked}
         />
-        <Kpi title="Detection Rate" value={dashboardData.stats.detectionRate} />
+        <Kpi
+          title="Fraud Rate (7d)"
+          value={dashboardData.stats.detectionRate}
+        />
       </div>
 
       <div className="md:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>📊 Fraud vs Valid Clicks</CardTitle>
+            <CardTitle>📊 Fraud vs Valid Clicks (Last 7 Days)</CardTitle>
           </CardHeader>
           <CardContent>
             <LineChart
@@ -177,7 +208,7 @@ export default function DashboardPage() {
       <div className="md:col-span-3">
         <Card>
           <CardHeader>
-            <CardTitle>🎯 Top Offending IPs & Fraud Sources</CardTitle>
+            <CardTitle>🎯 Recent Fraud Alerts</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -187,7 +218,6 @@ export default function DashboardPage() {
                   <TableHead>Location</TableHead>
                   <TableHead>Fraud Type</TableHead>
                   <TableHead>Wasted Budget</TableHead>
-                  <TableHead>Bad Clicks</TableHead>
                   <TableHead>Risk Level</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -200,7 +230,6 @@ export default function DashboardPage() {
                       <TableCell>{alert.location}</TableCell>
                       <TableCell>{alert.type}</TableCell>
                       <TableCell>{alert.cost}</TableCell>
-                      <TableCell>{alert.clicks}</TableCell>
                       <TableCell>
                         <Badge
                           variant={

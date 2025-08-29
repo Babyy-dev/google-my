@@ -1,10 +1,10 @@
-// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/lib/auth.tsx
+// lib/auth.tsx
 "use client";
 
 import { useContext, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { AuthContext } from "@/app/contexts/AuthContext"; // <-- Import the context from the new file
+import { AuthContext } from "@/app/contexts/AuthContext";
 import type { User, Session } from "@supabase/supabase-js";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         scopes: "https://www.googleapis.com/auth/adwords",
         queryParams: {
           access_type: "offline",
-          // prompt: "consent",
+          prompt: "consent",
         },
       },
     });
@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    // The disconnect logic is now handled automatically by the GoogleAdsProvider
     router.push("/login");
   };
 
@@ -71,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => {
-  const context = useContext(AuthContext); // <-- This now uses the imported context
+  const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
