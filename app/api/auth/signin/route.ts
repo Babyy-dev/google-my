@@ -1,16 +1,16 @@
-import { createClient } from "@/lib/supabase/server"; // Correct import for server-side routes
+// app/api/auth/signin/route.ts
+import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
 
-  // The redirectTo URL should be absolute for OAuth providers.
-  const redirectTo = `${new URL(request.url).origin}/api/auth/callback`;
-
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo,
+      redirectTo: `${request.headers.get("origin")}/api/auth/callback`,
+      scopes: "https://www.googleapis.com/auth/adwords",
+      // FIX: These two options are critical to fix the refresh token error.
       queryParams: {
         access_type: "offline",
         prompt: "consent",
@@ -19,10 +19,12 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
-    console.error("Sign-in error:", error);
-    return NextResponse.json({ error: "Failed to sign in" }, { status: 500 });
+    console.error("Error during sign-in:", error);
+    return NextResponse.json(
+      { error: "Could not sign in with Google" },
+      { status: 500 }
+    );
   }
 
-  // The URL for the user to visit to sign in with Google.
   return NextResponse.json({ url: data.url });
 }

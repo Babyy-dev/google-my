@@ -1,4 +1,3 @@
-// babyy-dev/google-my/google-my-2a6844f4f7375e420870493040d07233448ab22c/app/dashboard/click-fraud/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
