@@ -94,7 +94,7 @@ export interface Database {
           updated_at: string;
           click_fraud_threshold: number | null;
           stripe_customer_id: string | null;
-          click_fraud_window_hours: number | null; // <-- ADD THIS LINE
+          click_fraud_window_hours: number | null;
         };
         Insert: {
           id: string;
@@ -107,7 +107,7 @@ export interface Database {
           updated_at?: string;
           click_fraud_threshold?: number | null;
           stripe_customer_id?: string | null;
-          click_fraud_window_hours?: number | null; // <-- ADD THIS LINE
+          click_fraud_window_hours?: number | null;
         };
         Update: {
           id?: string;
@@ -120,7 +120,7 @@ export interface Database {
           updated_at?: string;
           click_fraud_threshold?: number | null;
           stripe_customer_id?: string | null;
-          click_fraud_window_hours?: number | null; // <-- ADD THIS LINE
+          click_fraud_window_hours?: number | null;
         };
       };
       subscriptions: {

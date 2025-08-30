@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -29,7 +30,8 @@ function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
     profile?.click_fraud_window_hours || 24
   );
 
-  const handleSave = () => {
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
     onUpdate({
       click_fraud_threshold: threshold,
       click_fraud_window_hours: windowHours,
@@ -38,65 +40,71 @@ function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>🛡️ Click Fraud Settings</CardTitle>
-        <CardDescription>
-          Configure the rules for automatic IP blocking.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid gap-2">
-          <label className="text-sm font-medium" htmlFor="click-threshold">
-            IP Click Threshold
-          </label>
-          <p className="text-xs text-foreground/60">
-            Block an IP after this many clicks.
-          </p>
-          <div className="flex items-center gap-2">
-            <Input
-              id="click-threshold"
-              type="number"
-              value={threshold}
-              onChange={(e) => setThreshold(parseInt(e.target.value, 10) || 2)}
-              className="w-24"
-              min="2"
-              max="10"
-            />
-            <span className="text-sm text-foreground/70">clicks</span>
+      <form onSubmit={handleSave}>
+        <CardHeader>
+          <CardTitle>🛡️ Click Fraud Settings</CardTitle>
+          <CardDescription>
+            Configure the rules for automatic IP blocking.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium" htmlFor="click-threshold">
+              IP Click Threshold
+            </label>
+            <p className="text-xs text-foreground/60">
+              Block an IP after this many clicks.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                id="click-threshold"
+                type="number"
+                value={threshold}
+                onChange={(e) =>
+                  setThreshold(parseInt(e.target.value, 10) || 2)
+                }
+                className="w-24"
+                min="2"
+                max="10"
+              />
+              <span className="text-sm text-foreground/70">clicks</span>
+            </div>
           </div>
-        </div>
 
-        <div className="grid gap-2">
-          <label className="text-sm font-medium" htmlFor="time-window">
-            Detection Time Window
-          </label>
-          <p className="text-xs text-foreground/60">
-            Count clicks from the same IP within this period.
-          </p>
-          <Select
-            value={String(windowHours)}
-            onValueChange={(value: string) => setWindowHours(Number(value))}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select a time window" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0.0167">1 Minute</SelectItem>
-              <SelectItem value="1">1 Hour</SelectItem>
-              <SelectItem value="24">24 Hours (Recommended)</SelectItem>
-              <SelectItem value="168">7 Days</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save Settings"}
-        </Button>
-      </CardContent>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium" htmlFor="time-window">
+              Detection Time Window
+            </label>
+            <p className="text-xs text-foreground/60">
+              Count clicks from the same IP within this period.
+            </p>
+            <Select
+              value={String(windowHours)}
+              onValueChange={(value: string) => setWindowHours(Number(value))}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select a time window" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0.0167">1 Minute</SelectItem>
+                <SelectItem value="1">1 Hour</SelectItem>
+                <SelectItem value="24">24 Hours (Recommended)</SelectItem>
+                <SelectItem value="168">7 Days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Saving..." : "Save Settings"}
+          </Button>
+        </CardFooter>
+      </form>
     </Card>
   );
 }
 
+// The rest of the page remains the same
 export default function SettingsPage() {
   const { profile, loading, error, updateProfile } = useProfile();
   const [saving, setSaving] = useState(false);
