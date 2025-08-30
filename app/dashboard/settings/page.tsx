@@ -19,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"; // Import Select components
+} from "@/components/ui/select";
 
 function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
   const [threshold, setThreshold] = useState(
@@ -66,7 +66,6 @@ function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
           </div>
         </div>
 
-        {/* New Time Window Setting */}
         <div className="grid gap-2">
           <label className="text-sm font-medium" htmlFor="time-window">
             Detection Time Window
@@ -76,7 +75,7 @@ function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
           </p>
           <Select
             value={String(windowHours)}
-            onValueChange={(value) => setWindowHours(Number(value))}
+            onValueChange={(value: string) => setWindowHours(Number(value))}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select a time window" />
