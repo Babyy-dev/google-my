@@ -1,7 +1,4 @@
 // app/dashboard/settings/page.tsx
-// ANALYSIS: This page is updated to include the new `FraudDetectionSettings` component,
-// allowing users to set their custom click fraud threshold.
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -16,33 +13,44 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/hooks/useProfile";
-import { useAuth } from "@/lib/auth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // Import Select components
 
 function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
   const [threshold, setThreshold] = useState(
     profile?.click_fraud_threshold || 3
   );
+  const [windowHours, setWindowHours] = useState(
+    profile?.click_fraud_window_hours || 24
+  );
 
   const handleSave = () => {
-    onUpdate({ click_fraud_threshold: threshold });
+    onUpdate({
+      click_fraud_threshold: threshold,
+      click_fraud_window_hours: windowHours,
+    });
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>🎯 Click Fraud Settings</CardTitle>
+        <CardTitle>🛡️ Click Fraud Settings</CardTitle>
         <CardDescription>
           Configure the rules for automatic IP blocking.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="grid gap-2">
           <label className="text-sm font-medium" htmlFor="click-threshold">
             IP Click Threshold
           </label>
           <p className="text-xs text-foreground/60">
-            Block an IP address after it clicks on your ads more than this many
-            times in a 24-hour period (e.g., 2, 3, or 4).
+            Block an IP after this many clicks.
           </p>
           <div className="flex items-center gap-2">
             <Input
@@ -57,8 +65,33 @@ function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
             <span className="text-sm text-foreground/70">clicks</span>
           </div>
         </div>
+
+        {/* New Time Window Setting */}
+        <div className="grid gap-2">
+          <label className="text-sm font-medium" htmlFor="time-window">
+            Detection Time Window
+          </label>
+          <p className="text-xs text-foreground/60">
+            Count clicks from the same IP within this period.
+          </p>
+          <Select
+            value={String(windowHours)}
+            onValueChange={(value) => setWindowHours(Number(value))}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select a time window" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0.0167">1 Minute</SelectItem>
+              <SelectItem value="1">1 Hour</SelectItem>
+              <SelectItem value="24">24 Hours (Recommended)</SelectItem>
+              <SelectItem value="168">7 Days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save Threshold"}
+          {saving ? "Saving..." : "Save Settings"}
         </Button>
       </CardContent>
     </Card>
@@ -66,7 +99,6 @@ function FraudDetectionSettings({ profile, onUpdate, saving }: any) {
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth();
   const { profile, loading, error, updateProfile } = useProfile();
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
@@ -94,7 +126,6 @@ export default function SettingsPage() {
     try {
       setSaving(true);
       await updateProfile(formData);
-      console.log("Profile updated successfully");
     } catch (err) {
       console.error("Failed to update profile:", err);
     } finally {
@@ -157,7 +188,7 @@ export default function SettingsPage() {
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>👤 Account Profile</CardTitle>
+          <CardTitle>Account Profile</CardTitle>
           <CardDescription>
             Manage your personal information and preferences
           </CardDescription>
@@ -217,10 +248,10 @@ export default function SettingsPage() {
                 disabled={saving}
                 className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
               >
-                {saving ? "💾 Saving..." : "💾 Save Changes"}
+                {saving ? "Saving..." : "Save Changes"}
               </Button>
               <Button type="button" variant="outline" onClick={handleReset}>
-                🔄 Reset
+                Reset
               </Button>
             </div>
           </form>
@@ -235,7 +266,7 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>🔐 Security & Privacy</CardTitle>
+          <CardTitle>Security & Privacy</CardTitle>
           <CardDescription>Protect your account and data</CardDescription>
         </CardHeader>
         <CardContent>

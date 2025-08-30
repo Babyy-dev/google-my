@@ -1,7 +1,4 @@
 // lib/database.types.ts
-// ANALYSIS: Added `click_fraud_threshold` and `stripe_customer_id` to user_profiles.
-// Added the new `subscriptions` table to track Stripe data.
-
 export type Json =
   | string
   | number
@@ -95,8 +92,9 @@ export interface Database {
           avatar_url: string | null;
           created_at: string;
           updated_at: string;
-          click_fraud_threshold: number | null; // User-configurable click limit
-          stripe_customer_id: string | null; // Stripe customer ID
+          click_fraud_threshold: number | null;
+          stripe_customer_id: string | null;
+          click_fraud_window_hours: number | null; // <-- ADD THIS LINE
         };
         Insert: {
           id: string;
@@ -109,6 +107,7 @@ export interface Database {
           updated_at?: string;
           click_fraud_threshold?: number | null;
           stripe_customer_id?: string | null;
+          click_fraud_window_hours?: number | null; // <-- ADD THIS LINE
         };
         Update: {
           id?: string;
@@ -121,11 +120,12 @@ export interface Database {
           updated_at?: string;
           click_fraud_threshold?: number | null;
           stripe_customer_id?: string | null;
+          click_fraud_window_hours?: number | null; // <-- ADD THIS LINE
         };
       };
       subscriptions: {
         Row: {
-          id: string; // Maps to user_id
+          id: string;
           stripe_customer_id: string | null;
           stripe_subscription_id: string | null;
           stripe_price_id: string | null;

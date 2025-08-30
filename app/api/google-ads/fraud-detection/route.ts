@@ -4,32 +4,25 @@ import { GoogleAdsApiClient } from "@/lib/google-ads-api-client";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
-  console.log("--- Fraud Detection API started ---");
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    console.error("API Error: Unauthorized access attempt.");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const { customerId, refreshToken, loginCustomerId } = await request.json();
-    console.log(
-      `Received customerId: ${customerId}, loginCustomerId: ${loginCustomerId}`
-    );
 
     if (!customerId || !refreshToken) {
-      console.error("API Error: Missing customerId or refreshToken.");
       return NextResponse.json(
         { error: "Missing customerId or refreshToken" },
         { status: 400 }
       );
     }
 
-    console.log("Step 1: Fetching account data from Supabase...");
     const { data: accountData, error: accountError } = await supabase
       .from("google_ads_accounts")
       .select("id")
@@ -38,26 +31,20 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (accountError || !accountData) {
-      console.error(
-        "API Error: Google Ads account not found in database.",
-        accountError
-      );
       return NextResponse.json(
         { error: "Google Ads account not found for this user." },
         { status: 404 }
       );
     }
-    console.log("Step 1: Success. Found account ID:", accountData.id);
 
-    console.log("Step 2: Fetching user profile from Supabase...");
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("click_fraud_threshold")
+      .select("click_fraud_threshold, click_fraud_window_hours") // Fetch the new column
       .eq("id", user.id)
       .single();
 
     const clickThreshold = profile?.click_fraud_threshold || 3;
-    console.log(`Step 2: Success. Using click threshold: ${clickThreshold}`);
+    const windowHours = profile?.click_fraud_window_hours || 24; // Get the new value
 
     const client = new GoogleAdsApiClient(
       refreshToken,
@@ -65,16 +52,29 @@ export async function POST(request: NextRequest) {
       loginCustomerId
     );
 
-    console.log("Step 3: Analyzing and storing fraud data...");
     const analysisResults = await client.analyzeAndStoreFraud(
       supabase,
       user.id,
       accountData.id,
-      clickThreshold
+      clickThreshold,
+      windowHours // Pass the new value here
     );
-    console.log(
-      `Step 3: Success. Found ${analysisResults.length} fraudulent clicks.`
-    );
+
+    if (analysisResults.length > 0) {
+      const ipsToBlock = new Map<string, string[]>();
+      for (const alert of analysisResults) {
+        if (alert.campaign_id && alert.ip_address !== "Unknown") {
+          if (!ipsToBlock.has(alert.campaign_id)) {
+            ipsToBlock.set(alert.campaign_id, []);
+          }
+          ipsToBlock.get(alert.campaign_id)!.push(alert.ip_address);
+        }
+      }
+
+      for (const [campaignId, ips] of ipsToBlock.entries()) {
+        await client.blockIpsFromCampaign(campaignId, [...new Set(ips)]);
+      }
+    }
 
     const totalCost = analysisResults.reduce(
       (sum, alert) => sum + (alert.cost || 0),
@@ -106,18 +106,13 @@ export async function POST(request: NextRequest) {
       recommendations: [],
     };
 
-    console.log("--- Fraud Detection API finished successfully ---");
     return NextResponse.json({
       success: true,
       message: "Fraud analysis complete.",
       analysis: fullAnalysis,
     });
   } catch (error: any) {
-    console.error(
-      "---!!!!!!!!!!!!!!!!! FRAUD DETECTION API CRASHED !!!!!!!!!!!!!!!!!! ---"
-    );
-    // FIX: Log the raw error object directly for better inspection
-    console.error("Raw Error Object:", error);
+    console.error("Fraud Detection API Error:", JSON.stringify(error, null, 2));
 
     const errorMessage =
       error.errors?.[0]?.message ||

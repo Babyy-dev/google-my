@@ -78,18 +78,19 @@ export class GoogleAdsApiClient {
     supabase: SupabaseClient,
     userId: string,
     googleAdsAccountId: string,
-    clickThreshold: number
+    clickThreshold: number,
+    windowHours: number // Added new parameter
   ): Promise<any[]> {
     const customer = this.getCustomer();
 
-    const twentyFourHoursAgo = new Date(
-      Date.now() - 24 * 60 * 60 * 1000
+    const startTime = new Date(
+      Date.now() - windowHours * 60 * 60 * 1000
     ).toISOString();
 
     const { data: clicks, error: clickError } = await supabase
       .from("ad_clicks")
       .select("ip_address, gclid, user_agent, created_at")
-      .gte("created_at", twentyFourHoursAgo);
+      .gte("created_at", startTime);
 
     if (clickError) {
       console.error("Error fetching clicks from DB:", clickError);
@@ -129,7 +130,7 @@ export class GoogleAdsApiClient {
     const report = await customer.report({
       entity: "click_view",
       attributes: ["campaign.id", "ad_group.id", "click_view.gclid"],
-      metrics: [], // Removed incompatible 'metrics.cost_micros'
+      metrics: [],
       constraints: {
         "click_view.gclid": fraudulentGclids,
       },
@@ -145,7 +146,7 @@ export class GoogleAdsApiClient {
         (row.click_view?.gclid &&
           fraudulentGclidsWithReason.get(row.click_view.gclid)) ||
         "Suspicious Activity",
-      cost: 0, // Cost is set to 0 as it cannot be retrieved from this report
+      cost: 0,
       campaign_id: (row.campaign?.id || "").toString(),
       ad_group_id: (row.ad_group?.id || "").toString(),
       created_at: new Date().toISOString(),
