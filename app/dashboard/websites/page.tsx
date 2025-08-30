@@ -14,18 +14,18 @@ import { Input } from "@/components/ui/input";
 import { useGoogleAdsContext } from "@/app/contexts/GoogleAdsContext";
 import { ConnectGoogleAds } from "@/components/auth/connect-google-ads";
 
-// FIX: Define a specific type for a Website object
+// Define a specific type for a Website object
 interface Website {
   url: string;
   googleAdsConnected: boolean;
 }
 
-// FIX: Explicitly type the initial empty array
+// Explicitly type the initial empty array
 const initialWebsites: Website[] = [];
 
 export default function WebsitesPage() {
   const { isConnected } = useGoogleAdsContext();
-  // FIX: Provide the type to the useState hook
+  // Provide the type to the useState hook
   const [websites, setWebsites] = useState<Website[]>(initialWebsites);
   const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
 
@@ -99,8 +99,8 @@ function Onboarding({ onAddWebsite, newWebsiteUrl, setNewWebsiteUrl }: any) {
         <CardHeader>
           <CardTitle className="text-2xl">Welcome to AdShield!</CardTitle>
           <CardDescription>
-            Let's get your first website protected. Enter the URL of the website
-            you want to shield from click fraud.
+            Let&apos;s get your first website protected. Enter the URL of the
+            website you want to shield from click fraud.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

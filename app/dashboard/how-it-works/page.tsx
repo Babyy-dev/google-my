@@ -12,15 +12,13 @@ import {
 import { Button } from "@/components/ui/button";
 
 export default function HowItWorksPage() {
-  const [trackedIp, setTrackedIp] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleDemoClick = () => {
     setLoading(true);
-    // This simulates a click on a Google Ad.
-    // It redirects to our tracking API, which logs the click and then sends the user to the final destination.
-    // NOTE: Replace "https://example.com" with your actual landing page for a real demo.
-    window.location.href = `/api/track-click?lpurl=https://example.com&gclid=demo-gclid-${Date.now()}`;
+    window.location.href = `/api/track-click?lpurl=${
+      window.location.origin
+    }/dashboard/how-it-works&gclid=demo-gclid-${Date.now()}`;
   };
 
   return (
@@ -40,12 +38,15 @@ export default function HowItWorksPage() {
             </h3>
             <p className="text-sm text-foreground/80">
               To track clicks, you need to add a simple piece of code, called a
-              "Tracking Template," to your Google Ads campaigns. This template
-              redirects users through our system for a split second to log their
-              IP address before sending them to your actual landing page.
+              &quot;Tracking Template,&quot; to your Google Ads campaigns. This
+              template redirects users through our system for a split second to
+              log their IP address before sending them to your actual landing
+              page.
             </p>
             <div className="p-3 bg-gray-100 rounded-md text-sm font-mono mt-2 overflow-x-auto">
-              {`${window.location.origin}/api/track-click?lpurl={lpurl}&gclid={gclid}`}
+              {`${
+                typeof window !== "undefined" ? window.location.origin : ""
+              }/api/track-click?lpurl={lpurl}&gclid={gclid}`}
             </div>
             <p className="text-xs text-foreground/60 mt-2">
               You can find this setting under:{" "}
@@ -62,8 +63,8 @@ export default function HowItWorksPage() {
             </h3>
             <p className="text-sm text-foreground/80">
               Click the button below to simulate what happens when a user clicks
-              your ad. We'll log the click in our database, just like a real
-              one.
+              your ad. We&apos;ll log the click in our database, just like a
+              real one.
             </p>
             <Button
               onClick={handleDemoClick}
@@ -73,8 +74,7 @@ export default function HowItWorksPage() {
               {loading ? "Redirecting..." : "🚀 Simulate Ad Click"}
             </Button>
             <p className="text-xs text-foreground/60 mt-2">
-              This will redirect you to a sample page and then bring you back
-              here.
+              This will redirect you and then bring you back to this page.
             </p>
           </div>
 
@@ -84,14 +84,14 @@ export default function HowItWorksPage() {
             </h3>
             <p className="text-sm text-foreground/80">
               Our system checks the number of clicks from each IP address. Based
-              on the "IP Click Threshold" you set on the{" "}
+              on the &quot;IP Click Threshold&quot; you set on the{" "}
               <a href="/dashboard/settings" className="underline text-primary">
                 Settings
               </a>{" "}
               page, if an IP clicks too many times, we automatically add it to
-              your campaign's IP exclusion list in Google Ads. This instantly
-              stops them from seeing and clicking your ads again, saving you
-              money.
+              your campaign&apos;s IP exclusion list in Google Ads. This
+              instantly stops them from seeing and clicking your ads again,
+              saving you money.
             </p>
           </div>
         </CardContent>
