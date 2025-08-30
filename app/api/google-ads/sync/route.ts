@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the login_customer_id from the database to handle MCC accounts
+    // Get the login_customer_id to handle MCC accounts
     const { data: accountData, error: accountError } = await supabase
       .from("google_ads_accounts")
       .select("login_customer_id")
@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // FIX: Fetch the user's profile to get the click threshold
+    // Fetch the user's profile to get both fraud detection settings
     const { data: profileData, error: profileError } = await supabase
       .from("user_profiles")
-      .select("click_fraud_threshold")
+      .select("click_fraud_threshold, click_fraud_window_hours")
       .eq("id", user.id)
       .single();
 
@@ -50,9 +50,10 @@ export async function POST(request: NextRequest) {
       throw new Error("Could not retrieve user profile for sync.");
     }
 
-    const clickThreshold = profileData?.click_fraud_threshold || 3; // Default to 3
+    const clickThreshold = profileData?.click_fraud_threshold || 3;
+    const windowHours = profileData?.click_fraud_window_hours || 24; // Get the new value
 
-    // Correctly instantiate the client with all required arguments
+    // Instantiate the client
     const client = new GoogleAdsApiClient(
       refreshToken,
       customerId,
@@ -62,10 +63,11 @@ export async function POST(request: NextRequest) {
     // This is a background task, so we don't wait for it to finish.
     client
       .analyzeAndStoreFraud(
-        supabase, // Pass the Supabase client instance
+        supabase,
         user.id,
         googleAdsAccountId,
-        clickThreshold // FIX: Pass the clickThreshold as the 4th argument
+        clickThreshold,
+        windowHours // FIX: Pass the new windowHours as the 5th argument
       )
       .catch((err) => {
         console.error(
