@@ -19,27 +19,21 @@ export async function POST(request: NextRequest) {
 
     if (!customerId || !refreshToken) {
       return NextResponse.json(
-        { error: "Missing Customer ID or Refresh Token." },
+        { error: "Missing required parameters." },
         { status: 400 }
       );
     }
 
-    // This is the new, simplified validation logic.
-    // We will try to access the account directly. If it's a manager account,
-    // the API will throw a specific error that we can catch.
-
-    const client = new GoogleAdsApiClient(refreshToken, cleanedCustomerId);
-
+    // First, let's check if the entered ID is a manager account itself.
+    // This is a common user error we can catch early.
     try {
-      await client.validate();
-      // If validate() succeeds, it's a valid, non-manager account we can access directly.
-      return NextResponse.json({
-        success: true,
-        message: "Customer ID is valid.",
-        loginCustomerId: null, // We are not using a manager ID
-      });
+      const testClient = new GoogleAdsApiClient(
+        refreshToken,
+        cleanedCustomerId,
+        cleanedCustomerId
+      );
+      await testClient.validate();
     } catch (error: any) {
-      // Check for the specific error indicating a manager account
       if (
         error.message &&
         error.message.includes(
@@ -49,22 +43,53 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error:
-              "This is a Manager Account ID. Please provide a specific Client Account ID.",
+              "The ID you entered is for a Manager Account. Please provide a specific Client Account ID.",
           },
           { status: 400 }
         );
       }
-
-      // For all other errors (permissions, invalid ID, etc.), give a general error.
-      // This is more secure and covers cases where the ID is simply wrong.
-      return NextResponse.json(
-        {
-          error:
-            "Invalid Customer ID or you do not have permission to access this account.",
-        },
-        { status: 400 }
-      );
+      // If it's another error, we'll let the main logic handle it.
     }
+
+    // Get all accounts the user has access to.
+    const accessibleCustomers =
+      await GoogleAdsApiClient.listAccessibleCustomers(refreshToken);
+
+    // The key is to find an account in the accessible list that can be used to log in
+    // and access the specific customerId the user provided.
+    for (const managerResourceName of accessibleCustomers) {
+      const managerId = managerResourceName.split("/")[1];
+      try {
+        const client = new GoogleAdsApiClient(
+          refreshToken,
+          cleanedCustomerId, // The Client ID we are trying to access
+          managerId // The account we are using to "log in" via the API
+        );
+
+        await client.validate();
+
+        // SUCCESS: If the validate() call does not throw an error, it means this managerId
+        // has permission to access the user's customerId. We've found the correct path.
+        return NextResponse.json({
+          success: true,
+          message: "Customer ID is valid.",
+          loginCustomerId: managerId, // This is the required "login-customer-id" for future API calls
+        });
+      } catch (e: any) {
+        // This is an expected failure. It simply means this specific manager account
+        // does not have access to the client account. We continue trying the next one.
+      }
+    }
+
+    // If we loop through all accessible accounts and none of them can access the
+    // provided customerId, then the ID is truly invalid or the user lacks permissions.
+    return NextResponse.json(
+      {
+        error:
+          "Invalid Customer ID or you do not have permission to access this account.",
+      },
+      { status: 400 }
+    );
   } catch (error: any) {
     console.error("Validation API error:", error);
     return NextResponse.json(

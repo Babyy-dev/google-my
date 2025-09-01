@@ -1,17 +1,7 @@
 // lib/google-ads-api-client.ts
 import { GoogleAdsApi, enums } from "google-ads-api";
 import { SupabaseClient } from "@supabase/supabase-js";
-
-interface FraudAlertInsert {
-  user_id: string;
-  google_ads_account_id: string;
-  ip_address: string;
-  timestamp: string;
-  reason: string;
-  cost: number;
-  campaign_id: string;
-  ad_group_id: string;
-}
+import { format } from "date-fns";
 
 const BOT_UA_FRAGMENTS = [
   "bot",
@@ -79,7 +69,7 @@ export class GoogleAdsApiClient {
     userId: string,
     googleAdsAccountId: string,
     clickThreshold: number,
-    windowHours: number // Added new parameter
+    windowHours: number
   ): Promise<any[]> {
     const customer = this.getCustomer();
 
@@ -98,68 +88,94 @@ export class GoogleAdsApiClient {
     }
 
     const ipCounts: { [key: string]: number } = {};
-    const fraudulentGclidsWithReason: Map<string, string> = new Map();
+    const fraudulentClicksData: {
+      gclid: string;
+      reason: string;
+      created_at: string;
+      ip_address: string | null;
+    }[] = [];
 
     for (const click of clicks) {
+      if (!click.gclid || !click.ip_address) continue;
+
       if (click.user_agent) {
         const isBot = BOT_UA_FRAGMENTS.some((fragment) =>
           click.user_agent!.toLowerCase().includes(fragment)
         );
-        if (isBot && click.gclid) {
-          fraudulentGclidsWithReason.set(click.gclid, "Known bot user agent");
+        if (isBot) {
+          fraudulentClicksData.push({
+            gclid: click.gclid,
+            reason: "Known bot user agent",
+            created_at: click.created_at,
+            ip_address: click.ip_address,
+          });
+          continue;
         }
       }
 
-      if (click.ip_address) {
-        ipCounts[click.ip_address] = (ipCounts[click.ip_address] || 0) + 1;
-        if (ipCounts[click.ip_address] > clickThreshold && click.gclid) {
-          fraudulentGclidsWithReason.set(
-            click.gclid,
-            `Exceeded click threshold of ${clickThreshold}`
-          );
-        }
+      ipCounts[click.ip_address] = (ipCounts[click.ip_address] || 0) + 1;
+      if (ipCounts[click.ip_address] > clickThreshold) {
+        fraudulentClicksData.push({
+          gclid: click.gclid,
+          reason: `Exceeded click threshold of ${clickThreshold}`,
+          created_at: click.created_at,
+          ip_address: click.ip_address,
+        });
       }
     }
 
-    if (fraudulentGclidsWithReason.size === 0) {
+    if (fraudulentClicksData.length === 0) {
       return [];
     }
 
-    const fraudulentGclids = Array.from(fraudulentGclidsWithReason.keys());
+    const gclidsByDate = new Map<string, string[]>();
+    for (const click of fraudulentClicksData) {
+      const date = format(new Date(click.created_at), "yyyy-MM-dd");
+      if (!gclidsByDate.has(date)) {
+        gclidsByDate.set(date, []);
+      }
+      gclidsByDate.get(date)!.push(click.gclid);
+    }
 
-    const report = await customer.report({
-      entity: "click_view",
-      attributes: ["campaign.id", "ad_group.id", "click_view.gclid"],
-      metrics: [],
-      constraints: {
-        "click_view.gclid": fraudulentGclids,
-      },
+    const allReportRows: any[] = [];
+
+    for (const [date, gclids] of gclidsByDate.entries()) {
+      const report = await customer.report({
+        entity: "click_view",
+        attributes: ["campaign.id", "ad_group.id", "click_view.gclid"],
+        metrics: [],
+        constraints: {
+          "segments.date": date,
+          "click_view.gclid": gclids,
+        },
+      });
+      allReportRows.push(...report);
+    }
+
+    const alertsToInsert = allReportRows.map((row: any) => {
+      const originalClick = fraudulentClicksData.find(
+        (c) => c.gclid === row.click_view?.gclid
+      );
+      return {
+        user_id: userId,
+        google_ads_account_id: googleAdsAccountId,
+        ip_address: originalClick?.ip_address || "Unknown",
+        reason: originalClick?.reason || "Suspicious Activity",
+        cost: 0,
+        campaign_id: (row.campaign?.id || "").toString(),
+        ad_group_id: (row.ad_group?.id || "").toString(),
+        created_at: new Date().toISOString(),
+      };
     });
 
-    const fraudulentClicks = report.map((row: any) => ({
-      user_id: userId,
-      google_ads_account_id: googleAdsAccountId,
-      ip_address:
-        clicks.find((c) => c.gclid === row.click_view?.gclid)?.ip_address ||
-        "Unknown",
-      reason:
-        (row.click_view?.gclid &&
-          fraudulentGclidsWithReason.get(row.click_view.gclid)) ||
-        "Suspicious Activity",
-      cost: 0,
-      campaign_id: (row.campaign?.id || "").toString(),
-      ad_group_id: (row.ad_group?.id || "").toString(),
-      created_at: new Date().toISOString(),
-    }));
-
-    if (fraudulentClicks.length > 0) {
+    if (alertsToInsert.length > 0) {
       const { error } = await supabase
         .from("fraud_alerts")
-        .insert(fraudulentClicks as any);
+        .insert(alertsToInsert);
       if (error) console.error("Error saving fraud alerts to Supabase:", error);
     }
 
-    return fraudulentClicks;
+    return alertsToInsert;
   }
 
   async analyzeNegativeKeywords(dateRange: string = "LAST_30_DAYS") {
